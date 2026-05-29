@@ -31,13 +31,11 @@ pub struct Call {
     pub pair_id: Bytes,
     /// IPFS content hash for call metadata
     pub ipfs_cid: Bytes,
-    /// Number of possible outcomes (default: 2 for backward compatibility)
-    pub outcome_count: u32,
-    /// Map of outcome indices to total stake amounts
-    pub outcome_stakes: Map<u32, i128>,
-    /// Map of outcome indices to staker addresses and their stake amounts
-    pub stakes: Map<u32, Map<Address, i128>>,
-    /// Resolved outcome: 0 = unresolved, 1..outcome_count = specific outcome
+    /// Current total stake on UP position
+    pub total_up_stake: i128,
+    /// Current total stake on DOWN position
+    pub total_down_stake: i128,
+    /// Resolved outcome: 0 = unresolved, 1 = UP, 2 = DOWN
     pub outcome: u32,
     /// Price at call creation
     pub start_price: i128,
@@ -112,10 +110,9 @@ pub struct GlobalStats {
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub struct CallStats {
-    /// Map of outcome indices to total stake amounts
-    pub outcome_stakes: Map<u32, i128>,
-    /// Map of outcome indices to stake counts
-    pub outcome_stake_counts: Map<u32, u32>,
-    /// Total number of stakes across all outcomes
+    pub total_up_stake: i128,
+    pub total_down_stake: i128,
     pub total_stakes: u32,
+    pub up_stake_count: u32,
+    pub down_stake_count: u32,
 }

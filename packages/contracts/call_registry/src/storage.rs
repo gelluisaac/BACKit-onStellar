@@ -17,6 +17,9 @@ pub enum DataKey {
     GlobalStakerSeen(Address),
     Call(u64),
     StakerCalls(Address),
+    UserStake(u64, Address, u32),
+    UpStakerCount(u64),
+    DownStakerCount(u64),
 }
 
 /// Store contract configuration
@@ -150,6 +153,65 @@ pub fn get_call_counter(env: &Env) -> u64 {
         .instance()
         .get(&DataKey::CallCounter)
         .unwrap_or(0)
+}
+
+/// Store user stake
+pub fn set_user_stake(env: &Env, call_id: u64, staker: &Address, position: u32, amount: i128) {
+    let key = DataKey::UserStake(call_id, staker.clone(), position);
+    env.storage().persistent().set(&key, &amount);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
+}
+
+/// Retrieve user stake
+pub fn get_user_stake(env: &Env, call_id: u64, staker: &Address, position: u32) -> i128 {
+    let key = DataKey::UserStake(call_id, staker.clone(), position);
+    let result: Option<i128> = env.storage().persistent().get(&key);
+    if result.is_some() {
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
+    }
+    result.unwrap_or(0)
+}
+
+/// Get up staker count for a call
+pub fn get_up_staker_count(env: &Env, call_id: u64) -> u32 {
+    let key = DataKey::UpStakerCount(call_id);
+    env.storage().persistent().get(&key).unwrap_or(0)
+}
+
+/// Set up staker count for a call
+pub fn set_up_staker_count(env: &Env, call_id: u64, count: u32) {
+    let key = DataKey::UpStakerCount(call_id);
+    env.storage().persistent().set(&key, &count);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
+}
+
+/// Get down staker count for a call
+pub fn get_down_staker_count(env: &Env, call_id: u64) -> u32 {
+    let key = DataKey::DownStakerCount(call_id);
+    env.storage().persistent().get(&key).unwrap_or(0)
+}
+
+/// Set down staker count for a call
+pub fn set_down_staker_count(env: &Env, call_id: u64, count: u32) {
+    let key = DataKey::DownStakerCount(call_id);
+    env.storage().persistent().set(&key, &count);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 /// Extend contract storage lifetime (for long-term persistence)

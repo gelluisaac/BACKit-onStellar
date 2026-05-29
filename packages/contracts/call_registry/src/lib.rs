@@ -128,15 +128,6 @@ impl CallRegistry {
         }
         let call_id = next_call_id(&env);
 
-        let mut outcome_stakes = soroban_sdk::Map::new(&env);
-        let mut stakes = soroban_sdk::Map::new(&env);
-        
-        // Initialize maps for each outcome
-        for i in 1..=outcome_count {
-            outcome_stakes.set(i, 0);
-            stakes.set(i, soroban_sdk::Map::new(&env));
-        }
-
         let call = Call {
             id: call_id,
             creator: creator.clone(),
@@ -146,9 +137,8 @@ impl CallRegistry {
             token_address: token_address.clone(),
             pair_id: pair_id.clone(),
             ipfs_cid: ipfs_cid.clone(),
-            outcome_count,
-            outcome_stakes,
-            stakes,
+            total_up_stake: 0,
+            total_down_stake: 0,
             outcome: 0,
             start_price: 0,
             end_price: 0,
@@ -288,31 +278,35 @@ impl CallRegistry {
         }
 
         // Validate position is within valid range
-        if position < 1 || position > call.outcome_count {
+        if position < 1 || position > 2 {
             return Err(CallRegistryError::InvalidPosition);
         }
 
         // Per-user stake cap
         let config = get_config(&env).expect("Contract not initialized");
-        if config.max_stake_per_user > 0 {
-            let outcome_stakes = call.stakes.get(position).unwrap_or_else(|| soroban_sdk::Map::new(&env));
-            let existing = outcome_stakes.get(staker.clone()).unwrap_or(0);
-            if existing + amount > config.max_stake_per_user {
-                panic!("Stake exceeds max_stake_per_user cap");
-            }
+        let current_stake = get_user_stake(&env, call_id, &staker, position);
+        if config.max_stake_per_user > 0 && current_stake + amount > config.max_stake_per_user {
+            panic!("Stake exceeds max_stake_per_user cap");
         }
 
         let token_client = token::Client::new(&env, &call.stake_token);
         token_client.transfer(&staker, &env.current_contract_address(), &amount);
 
-        // Update stake maps
-        let current_total = call.outcome_stakes.get(position).unwrap_or(0);
-        call.outcome_stakes.set(position, current_total + amount);
+        let new_stake = current_stake + amount;
 
-        let mut outcome_stakers = call.stakes.get(position).unwrap_or_else(|| soroban_sdk::Map::new(&env));
-        let current_staker_stake = outcome_stakers.get(staker.clone()).unwrap_or(0);
-        outcome_stakers.set(staker.clone(), current_staker_stake + amount);
-        call.stakes.set(position, outcome_stakers);
+        if position == OUTCOME_UP {
+            if current_stake == 0 {
+                set_up_staker_count(&env, call_id, get_up_staker_count(&env, call_id) + 1);
+            }
+            call.total_up_stake += amount;
+        } else if position == OUTCOME_DOWN {
+            if current_stake == 0 {
+                set_down_staker_count(&env, call_id, get_down_staker_count(&env, call_id) + 1);
+            }
+            call.total_down_stake += amount;
+        }
+
+        set_user_stake(&env, call_id, &staker, position, new_stake);
 
         set_call(&env, &call);
         add_staker_call(&env, &staker, call_id);
@@ -352,7 +346,7 @@ impl CallRegistry {
         let mut call = get_call(&env, call_id).ok_or(CallRegistryError::CallNotFound)?;
 
         // Validate outcome is within valid range
-        if outcome < 1 || outcome > call.outcome_count {
+        if outcome < 1 || outcome > 2 {
             return Err(CallRegistryError::InvalidOutcome);
         }
 
@@ -545,21 +539,15 @@ impl CallRegistry {
     /// * [`CallRegistryError::CallNotFound`] – `call_id` does not exist.
     pub fn get_call_stats(env: Env, call_id: u64) -> Result<CallStats, CallRegistryError> {
         let call = get_call(&env, call_id).ok_or(CallRegistryError::CallNotFound)?;
-
-        let mut outcome_stake_counts = soroban_sdk::Map::new(&env);
-        let mut total_stakes = 0;
-
-        for i in 1..=call.outcome_count {
-            let outcome_stakers = call.stakes.get(i).unwrap_or_else(|| soroban_sdk::Map::new(&env));
-            let count = outcome_stakers.len();
-            outcome_stake_counts.set(i, count);
-            total_stakes += count;
-        }
+        let up_stake_count = get_up_staker_count(&env, call_id);
+        let down_stake_count = get_down_staker_count(&env, call_id);
 
         Ok(CallStats {
-            outcome_stakes: call.outcome_stakes,
-            outcome_stake_counts,
-            total_stakes,
+            total_up_stake: call.total_up_stake,
+            total_down_stake: call.total_down_stake,
+            total_stakes: up_stake_count + down_stake_count,
+            up_stake_count,
+            down_stake_count,
         })
     }
 
@@ -587,22 +575,25 @@ impl CallRegistry {
         staker: Address,
         position: u32,
     ) -> Result<i128, CallRegistryError> {
-        let call = get_call(&env, call_id).ok_or(CallRegistryError::CallNotFound)?;
+        // Verify call exists
+        get_call(&env, call_id).ok_or(CallRegistryError::CallNotFound)?;
 
-        if position < 1 || position > call.outcome_count {
-            return Err(CallRegistryError::InvalidPosition);
+        match position {
+            OUTCOME_UP => Ok(get_user_stake(&env, call_id, &staker, position)),
+            OUTCOME_DOWN => Ok(get_user_stake(&env, call_id, &staker, position)),
+            _ => Err(CallRegistryError::InvalidPosition),
         }
-
-        let outcome_stakers = call.stakes.get(position).unwrap_or_else(|| soroban_sdk::Map::new(&env));
-        Ok(outcome_stakers.get(staker).unwrap_or(0))
     }
 
-    /// Get the total stakes for each outcome of a call.
+    /// Get the total stakes for each outcome of a call (UP / DOWN).
     /// # Errors
     /// * [`CallRegistryError::CallNotFound`] – `call_id` does not exist.
     pub fn get_outcome_stakes(env: Env, call_id: u64) -> Result<soroban_sdk::Map<u32, i128>, CallRegistryError> {
         let call = get_call(&env, call_id).ok_or(CallRegistryError::CallNotFound)?;
-        Ok(call.outcome_stakes)
+        let mut result = soroban_sdk::Map::new(&env);
+        result.set(OUTCOME_UP, call.total_up_stake);
+        result.set(OUTCOME_DOWN, call.total_down_stake);
+        Ok(result)
     }
 
     /// Get total number of calls created.
