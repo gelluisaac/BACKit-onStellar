@@ -95,6 +95,8 @@ pub struct ContractConfig {
     pub whitelisted_tokens: Map<Address, bool>,
     pub min_stake: i128,
     pub metadata_version: u32,
+    /// When true, create/stake/resolve operations are blocked.
+    pub paused: bool,
 }
 
 /// Contract-wide aggregated statistics for dashboards.

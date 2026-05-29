@@ -6,8 +6,9 @@ use backit_shared::is_valid_fee_bps;
 use crate::errors::CallRegistryError;
 use crate::events::{
     emit_admin_params_changed_address, emit_admin_params_changed_i128,
-    emit_admin_params_changed_u32, emit_token_delisted, emit_token_whitelisted, PARAM_ADMIN,
-    PARAM_FEE_BPS, PARAM_MAX_STAKE_PER_USER, PARAM_OUTCOME_MANAGER,
+    emit_admin_params_changed_u32, emit_contract_paused, emit_contract_unpaused,
+    emit_token_delisted, emit_token_whitelisted, PARAM_ADMIN, PARAM_FEE_BPS,
+    PARAM_MAX_STAKE_PER_USER, PARAM_OUTCOME_MANAGER,
 };
 use crate::storage::{extend_storage_ttl, get_config, set_config};
 
@@ -148,4 +149,28 @@ pub fn set_min_stake(env: Env, new_min_stake: i128) {
     set_config(&env, &config);
     extend_storage_ttl(&env);
     emit_admin_params_changed_i128(&env, PARAM_MIN_STAKE, &config.admin, old, new_min_stake);
+}
+
+/// Pause the contract — blocks create, stake, and resolve until unpaused.
+/// # Authorization
+/// Current admin must sign.
+pub fn pause(env: Env) {
+    let mut config = get_config(&env).expect("not initialized");
+    config.admin.require_auth();
+    config.paused = true;
+    set_config(&env, &config);
+    extend_storage_ttl(&env);
+    emit_contract_paused(&env, &config.admin);
+}
+
+/// Unpause the contract.
+/// # Authorization
+/// Current admin must sign.
+pub fn unpause(env: Env) {
+    let mut config = get_config(&env).expect("not initialized");
+    config.admin.require_auth();
+    config.paused = false;
+    set_config(&env, &config);
+    extend_storage_ttl(&env);
+    emit_contract_unpaused(&env, &config.admin);
 }

@@ -119,6 +119,7 @@ mod call_registry {
         let config = client.get_config();
         assert_eq!(config.admin, admin);
         assert_eq!(config.outcome_manager, outcome_manager);
+        assert!(!config.paused);
     }
 
     #[test]
@@ -1268,6 +1269,182 @@ mod call_registry {
             Err(Ok(CallRegistryError::CallSettled)),
             "second mark_settled should return CallSettled"
         );
+    }
+
+    // ── pause / unpause ───────────────────────────────────────────────────────
+
+    #[test]
+    fn test_get_config_paused_default_false() {
+        let (_env, client, _admin, _om) = setup();
+        assert!(!client.get_config().paused);
+    }
+
+    #[test]
+    fn test_admin_pause_unpause() {
+        let (_env, client, _admin, _om) = setup();
+        client.pause();
+        assert!(client.get_config().paused);
+        client.unpause();
+        assert!(!client.get_config().paused);
+    }
+
+    #[test]
+    fn test_pause_emits_contract_paused() {
+        let (env, client, admin, _om) = setup();
+        client.pause();
+
+        let events = env.events().all();
+        let last = events.last().expect("no events");
+
+        assert_eq!(
+            last.1,
+            soroban_sdk::vec![
+                &env,
+                "call_registry".into_val(&env),
+                "contract_paused".into_val(&env),
+            ]
+        );
+
+        let emitted_admin: Address = last.2.into_val(&env);
+        assert_eq!(emitted_admin, admin);
+    }
+
+    #[test]
+    fn test_unpause_emits_contract_unpaused() {
+        let (env, client, admin, _om) = setup();
+        client.pause();
+        client.unpause();
+
+        let events = env.events().all();
+        let last = events.last().expect("no events");
+
+        assert_eq!(
+            last.1,
+            soroban_sdk::vec![
+                &env,
+                "call_registry".into_val(&env),
+                "contract_unpaused".into_val(&env),
+            ]
+        );
+
+        let emitted_admin: Address = last.2.into_val(&env);
+        assert_eq!(emitted_admin, admin);
+    }
+
+    #[test]
+    #[should_panic(expected = "Contract is paused")]
+    fn test_create_call_panics_when_paused() {
+        let (env, client, _admin, _om) = setup();
+        let creator = Address::generate(&env);
+        client.pause();
+
+        env.ledger().set_timestamp(1000);
+        let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
+        let token_address = Address::generate(&env);
+        let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
+        let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
+
+        client.create_call(
+            &creator,
+            &stake_token,
+            &100_000_000_i128,
+            &2000u64,
+            &token_address,
+            &pair_id,
+            &ipfs_cid,
+            &ConditionType::TargetAbove(100_000_000_i128),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Contract is paused")]
+    fn test_stake_on_call_panics_when_paused() {
+        let (env, client, _admin, _om) = setup();
+        let creator = Address::generate(&env);
+        env.ledger().set_timestamp(1000);
+
+        let stake_token = env.register_contract(None, MockToken);
+        let token_address = Address::generate(&env);
+        let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
+        let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
+
+        let call = create_call_with_default_condition(
+            &client,
+            &creator,
+            &stake_token,
+            &100_000_000_i128,
+            &2000u64,
+            &token_address,
+            &pair_id,
+            &ipfs_cid,
+        );
+
+        client.pause();
+
+        let staker = Address::generate(&env);
+        client.stake_on_call(&staker, &call.id, &50_000_000_i128, &1);
+    }
+
+    #[test]
+    #[should_panic(expected = "Contract is paused")]
+    fn test_resolve_call_panics_when_paused() {
+        let (env, client, _admin, _om) = setup();
+        let creator = Address::generate(&env);
+        env.ledger().set_timestamp(1000);
+
+        let stake_token = env.register_contract(None, MockToken);
+        let token_address = Address::generate(&env);
+        let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
+        let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
+
+        let call = create_call_with_default_condition(
+            &client,
+            &creator,
+            &stake_token,
+            &100_000_000_i128,
+            &2000u64,
+            &token_address,
+            &pair_id,
+            &ipfs_cid,
+        );
+
+        client.pause();
+        env.ledger().set_timestamp(3000);
+
+        client.resolve_call(&call.id, &1, &150_000_000_i128);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_non_admin_cannot_pause() {
+        let env = Env::default();
+        let admin = Address::generate(&env);
+        let outcome_manager = Address::generate(&env);
+        let contract_id = env.register_contract(None, CallRegistry);
+        let client = CallRegistryClient::new(&env, &contract_id);
+
+        env.as_contract(&contract_id, || {
+            use crate::storage::set_config;
+            use crate::types::ContractConfig;
+            use soroban_sdk::Map;
+
+            set_config(
+                &env,
+                &ContractConfig {
+                    admin: admin.clone(),
+                    outcome_manager: outcome_manager.clone(),
+                    fee_bps: 0,
+                    max_stake_per_user: 0,
+                    whitelisted_tokens: Map::new(&env),
+                    min_stake: TEST_MIN_STAKE,
+                    metadata_version: 0,
+                    paused: false,
+                },
+            );
+        });
+
+        client.pause();
     }
 
     // ── condition ─────────────────────────────────────────────────────────────
