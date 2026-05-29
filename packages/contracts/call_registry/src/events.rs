@@ -14,6 +14,7 @@ pub fn emit_call_created(
     token_address: &Address,
     pair_id: &Bytes,
     ipfs_cid: &Bytes,
+    outcome_count: u32,
 ) {
     env.events().publish(
         ("call_registry", "call_created"),
@@ -26,6 +27,7 @@ pub fn emit_call_created(
             token_address.clone(),
             pair_id.clone(),
             ipfs_cid.clone(),
+            outcome_count,
         ),
     );
 }

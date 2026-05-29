@@ -30,4 +30,6 @@ pub enum CallRegistryError {
     InvalidOutcome = 12,
     /// `fee_bps` exceeds 10 000 (100 %).
     FeeTooHigh = 13,
+    /// `outcome_count` passed to `create_call` is less than 2.
+    InvalidOutcomeCount = 14,
 }
