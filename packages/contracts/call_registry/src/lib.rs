@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, token, Address, Bytes, Env, Vec};
+use soroban_sdk::{contract, contractimpl, token, Address, Bytes, Env, Map, Vec};
 
 mod admin;
 mod errors;
@@ -58,6 +58,7 @@ impl CallRegistry {
         env: Env,
         admin: Address,
         outcome_manager: Address,
+        min_stake: i128,
     ) -> Result<(), CallRegistryError> {
         if get_config(&env).is_some() {
             return Err(CallRegistryError::AlreadyInitialized);
@@ -70,6 +71,9 @@ impl CallRegistry {
             outcome_manager: outcome_manager.clone(),
             fee_bps: 0,
             max_stake_per_user: 0,
+            whitelisted_tokens: Map::new(&env),
+            min_stake,
+            metadata_version: 0,
         };
 
         set_config(&env, &config);
@@ -100,7 +104,8 @@ impl CallRegistry {
     ) -> Result<Call, CallRegistryError> {
         creator.require_auth();
 
-        if stake_amount <= 0 {
+        let config = get_config(&env).ok_or(CallRegistryError::NotInitialized)?;
+        if stake_amount < config.min_stake || stake_amount <= 0 {
             return Err(CallRegistryError::InvalidStakeAmount);
         }
 
@@ -113,6 +118,14 @@ impl CallRegistry {
             return Err(CallRegistryError::InvalidEndTime);
         }
 
+        let config = get_config(&env).ok_or(CallRegistryError::NotInitialized)?;
+        if !config
+            .whitelisted_tokens
+            .get(stake_token.clone())
+            .unwrap_or(false)
+        {
+            panic!("stake token not whitelisted");
+        }
         let call_id = next_call_id(&env);
 
         let mut outcome_stakes = soroban_sdk::Map::new(&env);
@@ -143,6 +156,7 @@ impl CallRegistry {
             settled: false,
             created_at: current_timestamp,
             cancelled: false,
+            metadata_version: 0,
         };
 
         set_call(&env, &call);
@@ -165,6 +179,41 @@ impl CallRegistry {
         Ok(call)
     }
 
+    pub fn update_call_metadata(
+        env: Env,
+        creator: Address,
+        call_id: u64,
+        new_ipfs_cid: Bytes,
+    ) -> Result<(), CallRegistryError> {
+        creator.require_auth();
+        let mut call = get_call(&env, call_id).ok_or(CallRegistryError::CallNotFound)?;
+
+        if call.creator != creator {
+            panic!("not the call creator");
+        }
+        if call.settled || call.cancelled {
+            panic!("call is ended or cancelled");
+        }
+        let current_ts = env.ledger().timestamp();
+        if current_ts >= call.end_ts {
+            panic!("call has expired");
+        }
+
+        let old_cid = call.ipfs_cid.clone();
+        call.ipfs_cid = new_ipfs_cid.clone();
+        call.metadata_version += 1;
+
+        set_call(&env, &call);
+        emit_call_metadata_updated(
+            &env,
+            call_id,
+            &creator,
+            &old_cid,
+            &new_ipfs_cid,
+            call.metadata_version,
+        );
+        Ok(())
+    }
     /// Extend the TTL of a specific call's persistent storage entry.
     /// Anyone may call this to prevent an active call from being archived.
     /// # Errors
@@ -180,6 +229,22 @@ impl CallRegistry {
             storage::PERSISTENT_BUMP_AMOUNT,
         );
         Ok(())
+    }
+
+    pub fn whitelist_token(env: Env, token_address: Address) {
+        admin::whitelist_token(env, token_address);
+    }
+
+    pub fn remove_token(env: Env, token_address: Address) {
+        admin::remove_token(env, token_address);
+    }
+
+    pub fn is_token_whitelisted(env: Env, token_address: Address) -> bool {
+        let config = get_config(&env).expect("not initialized");
+        config
+            .whitelisted_tokens
+            .get(token_address)
+            .unwrap_or(false)
     }
 
     /// Add stake to an existing call.
@@ -200,6 +265,11 @@ impl CallRegistry {
 
         if amount <= 0 {
             return Err(CallRegistryError::InvalidStakeAmount);
+        }
+
+        let config = get_config(&env).expect("not initialized");
+        if amount < config.min_stake {
+            panic!("stake below minimum");
         }
 
         let mut call = get_call(&env, call_id).ok_or(CallRegistryError::CallNotFound)?;
@@ -258,6 +328,10 @@ impl CallRegistry {
     /// Pass `0` to remove the cap.
     pub fn set_max_stake_per_user(env: Env, new_max: i128) {
         admin::set_max_stake_per_user(env, new_max);
+    }
+
+    pub fn set_min_stake(env: Env, new_min_stake: i128) {
+        admin::set_min_stake(env, new_min_stake);
     }
 
     /// Resolve a call with an outcome (outcome_manager only).

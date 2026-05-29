@@ -6,6 +6,9 @@ import { EmailSenderService } from './senders/email-sender.service';
 import { WebhookSenderService } from './senders/webhook-sender.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { DispatchType } from '../dispatch-type.enum';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { QUEUE_NOTIFICATIONS } from '../../common/queues/queues.constants';
 
 @Injectable()
 export class ExternalDispatcherService {
@@ -17,6 +20,8 @@ export class ExternalDispatcherService {
     private readonly notificationsRepository: Repository<NotificationEntity>,
     private readonly emailSender: EmailSenderService,
     private readonly webhookSender: WebhookSenderService,
+    @InjectQueue(QUEUE_NOTIFICATIONS)
+    private readonly notificationsQueue: Queue,
   ) {}
 
   /**
@@ -59,7 +64,7 @@ export class ExternalDispatcherService {
       return;
     }
 
-    this.logger.log(`Found ${pending.length} notifications to dispatch.`);
+    this.logger.log(`Found ${pending.length} notifications to enqueue.`);
 
     for (const notification of pending) {
       if (notification.dispatchType === DispatchType.NONE) {
@@ -71,27 +76,30 @@ export class ExternalDispatcherService {
       }
 
       try {
-        if (notification.dispatchType === DispatchType.EMAIL) {
-          await this.emailSender.send(notification);
-        } else if (notification.dispatchType === DispatchType.WEBHOOK) {
-          await this.webhookSender.send(notification);
-        }
-
-        await this.notificationsRepository.update(notification.id, {
-          isDispatched: true,
-          dispatchError: null,
-        });
-        this.logger.verbose(
-          `Successfully dispatched notification ${notification.id} via ${notification.dispatchType}`,
+        await this.notificationsQueue.add(
+          'dispatch-notification',
+          { notificationId: notification.id },
+          {
+            jobId: String(notification.id), // de-dupe
+          },
         );
+        this.logger.verbose(`Enqueued notification ${notification.id}`);
       } catch (error) {
         this.logger.error(
-          `Failed to dispatch notification ${notification.id}: ${error.message}`,
+          `Failed to enqueue notification ${notification.id}: ${error.message}`,
         );
         await this.notificationsRepository.update(notification.id, {
           dispatchError: error.message,
         });
       }
     }
+  }
+
+  async enqueueNotification(notificationId: number): Promise<void> {
+    await this.notificationsQueue.add(
+      'dispatch-notification',
+      { notificationId },
+      { jobId: String(notificationId) },
+    );
   }
 }

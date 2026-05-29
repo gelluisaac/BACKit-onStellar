@@ -1,4 +1,4 @@
-use soroban_sdk::{BytesN, Env, Bytes};
+use soroban_sdk::{Bytes, BytesN, Env};
 
 // Re-export build_message from the shared crate so existing call sites are unchanged.
 pub use backit_shared::build_message;

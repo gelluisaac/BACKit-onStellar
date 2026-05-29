@@ -30,6 +30,16 @@ export class CallsRepository extends Repository<Call> {
       .getManyAndCount();
   }
 
+  async findTrendingFeed(page: number, limit: number): Promise<[Call[], number]> {
+    return this.visibleQuery()
+      .leftJoin('call_trending_scores', 'trend', 'trend."callId" = call.id')
+      .orderBy('COALESCE(trend.score, 0)', 'DESC')
+      .addOrderBy('call.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+  }
+
   async findFeedByFollowing(
     address: string,
     page: number,

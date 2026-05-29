@@ -28,6 +28,8 @@ mod call_registry {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    const TEST_MIN_STAKE: i128 = 1_000_000;
+
     /// Spin up a fresh environment with a registered, initialised CallRegistry.
     fn setup() -> (Env, CallRegistryClient<'static>, Address, Address) {
         let env = Env::default();
@@ -39,7 +41,7 @@ mod call_registry {
         let admin = Address::generate(&env);
         let outcome_manager = Address::generate(&env);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
 
         (env, client, admin, outcome_manager)
     }
@@ -65,6 +67,7 @@ mod call_registry {
         pair_id: &Bytes,
         ipfs_cid: &Bytes,
     ) -> crate::types::Call {
+        client.whitelist_token(stake_token);
         client.create_call(
             creator,
             stake_token,
@@ -111,7 +114,7 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
 
         let config = client.get_config();
         assert_eq!(config.admin, admin);
@@ -124,9 +127,9 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
 
-        let result = client.try_initialize(&admin, &outcome_manager);
+        let result = client.try_initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         assert_eq!(
             result,
             Err(Ok(CallRegistryError::AlreadyInitialized)),
@@ -180,7 +183,7 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         client.set_admin(&new_admin);
 
         assert_eq!(client.get_config().admin, new_admin);
@@ -223,7 +226,7 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         client.set_outcome_manager(&new_manager);
 
         assert_eq!(client.get_config().outcome_manager, new_manager);
@@ -287,10 +290,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -316,7 +320,7 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
 
         let result = client.try_extend_call_ttl(&999u64);
         assert_eq!(
@@ -334,10 +338,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -364,10 +369,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -402,6 +408,7 @@ mod call_registry {
         let staker1 = Address::generate(&env);
         let staker2 = Address::generate(&env);
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -453,10 +460,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -488,10 +496,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -521,10 +530,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -557,10 +567,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -592,10 +603,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -627,10 +639,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -663,10 +676,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -698,10 +712,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -730,7 +745,7 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
 
         let result = client.try_get_call(&999);
         assert_eq!(
@@ -750,10 +765,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -791,10 +807,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -824,10 +841,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -860,12 +878,13 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         assert_eq!(client.get_call_count(), 0);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -902,7 +921,7 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = Address::generate(&env);
@@ -954,7 +973,7 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = Address::generate(&env);
@@ -988,7 +1007,7 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = Address::generate(&env);
@@ -1043,7 +1062,7 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = Address::generate(&env);
@@ -1106,10 +1125,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -1140,10 +1160,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -1178,10 +1199,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -1218,10 +1240,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -1255,10 +1278,11 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
+        client.whitelist_token(&stake_token);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");

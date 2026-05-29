@@ -20,6 +20,9 @@ import { TokensModule } from './token/tokens.module';
 import { RelayModule } from './relay/relay.module';
 import { CommentsModule } from './comments/comments.module';
 import { PayoutsModule } from './payouts/payouts.module';
+import { QueuesModule } from './common/queues/queues.module';
+import { StorageModule } from './storage/storage.module';
+import { TreasuryModule } from './treasury/treasury.module';
 
 @Module({
   imports: [
@@ -38,6 +41,8 @@ import { PayoutsModule } from './payouts/payouts.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    QueuesModule,
+    StorageModule,
     ScheduleModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'postgres',
@@ -70,6 +75,7 @@ import { PayoutsModule } from './payouts/payouts.module';
     UsersModule,
     TokensModule,
     PayoutsModule,
+    TreasuryModule,
     GatewaysModule,
     AuditModule,
     FirewallModule,

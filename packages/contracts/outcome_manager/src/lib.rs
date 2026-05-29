@@ -11,10 +11,10 @@ use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, IntoVal, Map, Sy
 use auth::require_admin;
 use backit_shared::{is_valid_fee_bps, is_valid_outcome};
 use events::{
-    emit_batch_payout_started, emit_fee_collected, emit_outcome_finalized, emit_outcome_submitted,
-    emit_payout_claimed,
+    emit_batch_payout_started, emit_fee_collected, emit_outcome_disputed, emit_outcome_finalized,
+    emit_outcome_submitted, emit_payout_claimed,
 };
-use storage::{InstanceKey, Outcome, SignedOutcome, TempKey};
+use storage::{set_dispute_window, InstanceKey, Outcome, SignedOutcome, TempKey};
 use verification::{build_message, verify_signature};
 
 // ─── Cross-contract helpers ────────────────────────────────────────────────────
@@ -75,6 +75,7 @@ impl OutcomeManager {
         quorum: u32,
         fee_collector: Address,
         fee_bps: u32,
+        dispute_window_secs: u64,
     ) {
         if env.storage().instance().has(&InstanceKey::Admin) {
             panic!("already initialized");
@@ -103,6 +104,7 @@ impl OutcomeManager {
             .instance()
             .set(&InstanceKey::FeeCollector, &fee_collector);
         env.storage().instance().set(&InstanceKey::FeeBps, &fee_bps);
+        set_dispute_window(&env, dispute_window_secs);
     }
 
     // ── Admin Controls ─────────────────────────────────────────────────────────
@@ -359,6 +361,66 @@ impl OutcomeManager {
         registry_release_escrow(&env, &registry, call_id, &staker, payout);
 
         emit_payout_claimed(&env, call_id, &staker, payout);
+    }
+
+    pub fn finalize_outcome(env: Env, call_id: u64) {
+        let pending: Outcome = env
+            .storage()
+            .instance()
+            .get(&InstanceKey::PendingOutcome(call_id))
+            .expect("no pending outcome");
+
+        let window_start: u64 = env
+            .storage()
+            .instance()
+            .get(&InstanceKey::DisputeWindowStart(call_id))
+            .expect("no window start");
+
+        let dispute_window = storage::get_dispute_window(&env);
+        if env.ledger().timestamp() < window_start + dispute_window {
+            panic!("dispute window not yet expired");
+        }
+
+        env.storage()
+            .instance()
+            .set(&InstanceKey::FinalOutcome(call_id), &pending);
+        let registry = storage::get_registry(&env);
+        registry_resolve_call(
+            &env,
+            &registry,
+            pending.call_id,
+            pending.outcome,
+            pending.price,
+        );
+        emit_outcome_finalized(&env, call_id, pending.outcome, pending.price);
+    }
+
+    pub fn dispute_outcome(env: Env, call_id: u64, new_outcome: u32, new_price: i128) {
+        require_admin(&env);
+
+        let mut pending: Outcome = env
+            .storage()
+            .instance()
+            .get(&InstanceKey::PendingOutcome(call_id))
+            .expect("no pending outcome");
+
+        let window_start: u64 = env
+            .storage()
+            .instance()
+            .get(&InstanceKey::DisputeWindowStart(call_id))
+            .expect("no window start");
+
+        let dispute_window = storage::get_dispute_window(&env);
+        if env.ledger().timestamp() >= window_start + dispute_window {
+            panic!("dispute window has expired");
+        }
+
+        pending.outcome = new_outcome;
+        pending.price = new_price;
+        env.storage()
+            .instance()
+            .set(&InstanceKey::PendingOutcome(call_id), &pending);
+        emit_outcome_disputed(&env, call_id, new_outcome, new_price);
     }
 
     /// Batch-settle payouts for multiple winning stakers in a single transaction.

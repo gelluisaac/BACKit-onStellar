@@ -40,6 +40,9 @@ pub enum InstanceKey {
     FeeBps,
     /// Stored CallRegistry address; set via set_registry() to avoid caller-supplied forgery
     Registry,
+    DisputeWindow,
+    PendingOutcome(u64),     // stores Outcome after quorum, before finalization
+    DisputeWindowStart(u64), // ledger timestamp when quorum was reached
 }
 
 #[contracttype]
@@ -62,4 +65,17 @@ pub fn get_registry(env: &Env) -> Address {
         .instance()
         .get(&InstanceKey::Registry)
         .expect("registry not set")
+}
+
+pub fn set_dispute_window(env: &Env, secs: u64) {
+    env.storage()
+        .instance()
+        .set(&InstanceKey::DisputeWindow, &secs);
+}
+
+pub fn get_dispute_window(env: &Env) -> u64 {
+    env.storage()
+        .instance()
+        .get(&InstanceKey::DisputeWindow)
+        .unwrap_or(3600)
 }

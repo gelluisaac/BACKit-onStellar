@@ -1,12 +1,13 @@
 use soroban_sdk::{Address, Env};
 
+use crate::events::PARAM_MIN_STAKE;
 use backit_shared::is_valid_fee_bps;
 
 use crate::errors::CallRegistryError;
 use crate::events::{
     emit_admin_params_changed_address, emit_admin_params_changed_i128,
-    emit_admin_params_changed_u32, PARAM_ADMIN, PARAM_FEE_BPS, PARAM_MAX_STAKE_PER_USER,
-    PARAM_OUTCOME_MANAGER,
+    emit_admin_params_changed_u32, emit_token_delisted, emit_token_whitelisted, PARAM_ADMIN,
+    PARAM_FEE_BPS, PARAM_MAX_STAKE_PER_USER, PARAM_OUTCOME_MANAGER,
 };
 use crate::storage::{extend_storage_ttl, get_config, set_config};
 
@@ -118,4 +119,33 @@ pub fn set_max_stake_per_user(env: Env, new_max: i128) {
         old_max,
         new_max,
     );
+}
+
+pub fn whitelist_token(env: Env, token_address: Address) {
+    let mut config = get_config(&env).expect("not initialized");
+    config.admin.require_auth();
+    config.whitelisted_tokens.set(token_address.clone(), true);
+    set_config(&env, &config);
+    emit_token_whitelisted(&env, &token_address);
+}
+
+pub fn remove_token(env: Env, token_address: Address) {
+    let mut config = get_config(&env).expect("not initialized");
+    config.admin.require_auth();
+    config.whitelisted_tokens.remove(token_address.clone());
+    set_config(&env, &config);
+    emit_token_delisted(&env, &token_address);
+}
+
+pub fn set_min_stake(env: Env, new_min_stake: i128) {
+    if new_min_stake < 0 {
+        panic!("min_stake cannot be negative");
+    }
+    let mut config = get_config(&env).expect("not initialized");
+    config.admin.require_auth();
+    let old = config.min_stake;
+    config.min_stake = new_min_stake;
+    set_config(&env, &config);
+    extend_storage_ttl(&env);
+    emit_admin_params_changed_i128(&env, PARAM_MIN_STAKE, &config.admin, old, new_min_stake);
 }

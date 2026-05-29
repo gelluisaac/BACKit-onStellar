@@ -4,6 +4,7 @@ import { In, Repository } from 'typeorm';
 import { NotificationEntity } from './notification.entity';
 import { NotificationType } from './notification-type.enum';
 import { DispatchType } from './dispatch-type.enum';
+import { ExternalDispatcherService } from './external-dispatcher/external-dispatcher.service';
 
 export interface PaginatedNotifications {
   data: NotificationEntity[];
@@ -19,6 +20,7 @@ export class NotificationsService {
   constructor(
     @InjectRepository(NotificationEntity)
     private readonly notificationsRepository: Repository<NotificationEntity>,
+    private readonly externalDispatcher: ExternalDispatcherService,
   ) {}
 
   /**
@@ -62,6 +64,13 @@ export class NotificationsService {
     this.logger.verbose(
       `Notification created: ${type} for user ${userId} (Dispatch: ${dispatchType})`,
     );
+
+    if (dispatchType !== DispatchType.NONE) {
+      // Enqueue async dispatch (do not block HTTP request).
+      // Cron will also backfill any missed rows.
+      this.externalDispatcher.enqueueNotification(saved.id).catch(() => undefined);
+    }
+
     return saved;
   }
 

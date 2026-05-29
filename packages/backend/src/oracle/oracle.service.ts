@@ -13,6 +13,7 @@ import { retryWithBackoff, Retryable } from '../utils/retry';
 import { REPORT_THRESHOLD } from '../calls/constants/moderation.constants';
 import { OracleHealthService } from './oracle-health.service';
 import { OracleOperationType } from './entities/oracle-health-log.entity';
+import { SigningService } from './signing.service';
 
 /**
  * High-level lifecycle status for a market/call, used by analytics and UI.
@@ -40,6 +41,7 @@ export class OracleService {
     @InjectRepository(OracleOutcome)
     private readonly oracleOutcomeRepository: Repository<OracleOutcome>,
     private readonly oracleHealthService: OracleHealthService,
+    private readonly signingService: SigningService,
   ) {}
 
   // ─── Core CRUD ────────────────────────────────────────────────────────────
@@ -257,10 +259,23 @@ export class OracleService {
 
     const outcome = this.evaluateOutcome(call, observedPrice);
 
-    // TODO: swap stub for real Soroban signing + submission
-    // const builtTx = await this.signingService.buildResolutionTx(callId, outcome);
-    // const signed  = await this.signingService.sign(builtTx);
-    // await this.rpcServer.sendTransaction(signed);
+    const signature = this.signingService.signOutcome({
+      callId,
+      price: Number(observedPrice),
+      timestamp: Math.floor(Date.now() / 1000),
+      outcome: outcome === OracleCallStatus.RESOLVED_YES ? 'YES' : 'NO',
+      pairAddress: call.pairAddress,
+    });
+
+    await this.oracleOutcomeRepository.save(
+      this.oracleOutcomeRepository.create({
+        call,
+        price: Number(observedPrice),
+        outcome: outcome === OracleCallStatus.RESOLVED_YES ? 'YES' : 'NO',
+        signature,
+        transactionHash: undefined,
+      } as any),
+    );
 
     call.status = outcome;
     call.finalPrice = observedPrice;

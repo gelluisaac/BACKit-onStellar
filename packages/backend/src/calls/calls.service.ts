@@ -29,7 +29,10 @@ export class CallsService {
 
   async getFeed(query: QueryCallsDto) {
     const { page = 1, limit = 20 } = query;
-    const [data, total] = await this.callsRepository.findFeed(page, limit);
+    const [data, total] =
+      query.sort === 'trending'
+        ? await this.callsRepository.findTrendingFeed(page, limit)
+        : await this.callsRepository.findFeed(page, limit);
     return { data, total, page, limit };
   }
 

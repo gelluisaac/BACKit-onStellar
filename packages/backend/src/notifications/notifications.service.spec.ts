@@ -5,6 +5,7 @@ import { NotificationsService } from './notifications.service';
 import { NotificationEntity } from './notification.entity';
 import { NotificationType } from './notification-type.enum';
 import { DispatchType } from './dispatch-type.enum';
+import { ExternalDispatcherService } from './external-dispatcher/external-dispatcher.service';
 
 const mockNotification: NotificationEntity = {
   id: 1,
@@ -35,6 +36,10 @@ describe('NotificationsService', () => {
             count: jest.fn(),
             update: jest.fn(),
           },
+        },
+        {
+          provide: ExternalDispatcherService,
+          useValue: { enqueueNotification: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

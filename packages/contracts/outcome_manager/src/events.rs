@@ -49,3 +49,10 @@ pub fn emit_batch_payout_started(env: &Env, call_id: u64, staker_count: u32) {
         (call_id, staker_count),
     );
 }
+
+pub fn emit_outcome_disputed(env: &Env, call_id: u64, new_outcome: u32, new_price: i128) {
+    env.events().publish(
+        (symbol_short!("outcome"), symbol_short!("disputed")),
+        (call_id, new_outcome, new_price),
+    );
+}

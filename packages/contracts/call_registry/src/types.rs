@@ -51,6 +51,7 @@ pub struct Call {
     pub created_at: u64,
     /// Whether the call has been cancelled by its creator
     pub cancelled: bool,
+    pub metadata_version: u32,
 }
 
 /// Enum representing stake positions on a call
@@ -93,6 +94,9 @@ pub struct ContractConfig {
     /// Maximum stake any single user may place per call per position.
     /// `0` means unlimited.
     pub max_stake_per_user: i128,
+    pub whitelisted_tokens: Map<Address, bool>,
+    pub min_stake: i128,
+    pub metadata_version: u32,
 }
 
 /// Contract-wide aggregated statistics for dashboards.

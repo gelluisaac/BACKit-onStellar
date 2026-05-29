@@ -1,11 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { OracleController } from '../oracle.controller';
-import { OracleSigningService } from '../services/oracle-signing.service';
-import { SignPriceDto } from '../dto/sign-price.dto';
+import { OracleController } from './oracle.controller';
+import { OracleSigningService } from './oracle-signing.service';
+import { SignPriceDto } from './sign-price.dto';
 import {
   SignedPriceData,
   OraclePublicKeyResponse,
-} from '../interfaces/oracle.interfaces';
+} from './oracle.interfaces';
+import { getQueueToken } from '@nestjs/bullmq';
+import { QUEUE_ORACLE_SIGNING } from '../common/queues/queues.constants';
 
 const MOCK_PUBLIC_KEY = 'a'.repeat(64);
 
@@ -26,12 +28,17 @@ const mockSigningService: jest.Mocked<Partial<OracleSigningService>> = {
 
 describe('OracleController', () => {
   let controller: OracleController;
+  const mockQueue = {
+    add: jest.fn(),
+    getJob: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [OracleController],
       providers: [
         { provide: OracleSigningService, useValue: mockSigningService },
+        { provide: getQueueToken(QUEUE_ORACLE_SIGNING), useValue: mockQueue },
       ],
     }).compile();
 

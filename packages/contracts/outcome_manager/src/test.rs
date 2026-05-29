@@ -2,7 +2,7 @@
 
 use soroban_sdk::{
     contract, contractimpl,
-    testutils::{Address as _, Ledger},
+    testutils::Address as _,
     Address, BytesN, Env, Vec,
 };
 
@@ -86,7 +86,7 @@ fn setup_single_oracle(
     oracles.push_back(oracle_pubkey.clone());
 
     let fee_collector = Address::generate(env);
-    client.initialize(&admin, &oracles, &1u32, &fee_collector, &0u32);
+    client.initialize(&admin, &oracles, &1u32, &fee_collector, &0u32, &0u64);
 
     // Register a mock registry contract
     let registry_id = env.register_contract(None, MockRegistry);
@@ -110,7 +110,7 @@ fn test_initialize_success() {
     oracles.push_back(pubkey.clone());
 
     let fee_collector = Address::generate(&env);
-    client.initialize(&admin, &oracles, &1u32, &fee_collector, &100u32);
+    client.initialize(&admin, &oracles, &1u32, &fee_collector, &100u32, &0u64);
 
     assert_eq!(client.get_quorum(), 1);
     assert!(client.is_oracle(&pubkey));
@@ -125,7 +125,7 @@ fn test_initialize_twice_fails() {
     let fee_collector = Address::generate(&env);
     let mut oracles = Vec::new(&env);
     oracles.push_back(pubkey);
-    client.initialize(&admin, &oracles, &1u32, &fee_collector, &0u32);
+    client.initialize(&admin, &oracles, &1u32, &fee_collector, &0u32, &0u64);
 }
 
 #[test]
@@ -142,7 +142,7 @@ fn test_initialize_quorum_zero_fails() {
     let fee_collector = Address::generate(&env);
     let mut oracles = Vec::new(&env);
     oracles.push_back(pubkey);
-    client.initialize(&admin, &oracles, &0u32, &fee_collector, &0u32);
+    client.initialize(&admin, &oracles, &0u32, &fee_collector, &0u32, &0u64);
 }
 
 // ─── Oracle Submission & Verification Tests ────────────────────────────────────
@@ -163,7 +163,7 @@ fn test_quorum_reached_with_two_oracles() {
     oracles.push_back(p1.clone());
     oracles.push_back(p2.clone());
     let fee_collector = Address::generate(&env);
-    client.initialize(&admin, &oracles, &2u32, &fee_collector, &0u32);
+    client.initialize(&admin, &oracles, &2u32, &fee_collector, &0u32, &0u64);
 
     let registry_id = env.register_contract(None, MockRegistry);
     let call_id = 42u64;
@@ -326,7 +326,7 @@ fn setup_with_fee(env: &Env, fee_bps: u32) -> (Address, Address, OutcomeManagerC
 
     let mut oracles = Vec::new(env);
     oracles.push_back(oracle_pubkey.clone());
-    client.initialize(&admin, &oracles, &1u32, &fee_collector, &fee_bps);
+    client.initialize(&admin, &oracles, &1u32, &fee_collector, &fee_bps, &0u64);
 
     let registry_id = env.register_contract(None, MockRegistry);
 
@@ -425,7 +425,7 @@ fn test_invalid_fee_bps_panics() {
 
     let mut oracles = Vec::new(&env);
     oracles.push_back(pubkey);
-    client.initialize(&admin, &oracles, &1u32, &fee_collector, &10001u32);
+    client.initialize(&admin, &oracles, &1u32, &fee_collector, &10001u32, &0u64);
 }
 
 // ─── Batch Payout Tests ────────────────────────────────────────────────────────
