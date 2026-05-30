@@ -44,7 +44,12 @@ if (!globalForMockDb.mockUsers) {
         following: 42,
         isFollowing: false,
         bio: 'Crypto analyst and top prediction maker on Stellar. Seeking alpha daily.',
-        avatarUrl: null
+        avatarUrl: null,
+        badges: [
+          { type: 'Early Adopter', earnedAt: new Date(Date.now() - 86400 * 30 * 1000).toISOString() },
+          { type: 'Top Predictor', earnedAt: new Date(Date.now() - 86400 * 12 * 1000).toISOString() },
+          { type: 'Hot Streak', earnedAt: new Date(Date.now() - 86400 * 3 * 1000).toISOString() }
+        ]
       },
       createdCalls: [
         {
@@ -128,7 +133,8 @@ export function getUserProfile(address: string): UserProfile {
         following: 0,
         isFollowing: false,
         bio: '',
-        avatarUrl: null
+        avatarUrl: null,
+        badges: []
       },
       createdCalls: [],
       participatedCalls: [],

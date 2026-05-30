@@ -4,6 +4,8 @@ import { User } from '@/types'
 import { truncateAddress } from '@/lib/utils'
 import { User as UserIcon, Edit, UserPlus, UserMinus, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
+import Image from 'next/image'
+import BadgeDisplay from '@/components/BadgeDisplay'
 
 interface ProfileHeaderProps {
   user: User
@@ -26,10 +28,13 @@ export default function ProfileHeader({
         <div className="flex items-start space-x-4">
           <div className="w-16 h-16 bg-primary-100 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 border-2 border-primary-200">
             {user.avatarUrl ? (
-              <img 
-                src={user.avatarUrl} 
-                alt={user.displayName || 'Avatar'} 
-                className="w-full h-full object-cover"
+              <Image
+                src={user.avatarUrl}
+                alt={user.displayName || 'Avatar'}
+                width={64}
+                height={64}
+                unoptimized
+                className="h-full w-full object-cover"
               />
             ) : (
               <UserIcon className="w-8 h-8 text-primary-600" />
@@ -50,6 +55,9 @@ export default function ProfileHeader({
                 {user.bio}
               </p>
             )}
+            <div className="mt-4">
+              <BadgeDisplay badges={user.badges} />
+            </div>
           </div>
         </div>
         
@@ -95,4 +103,3 @@ export default function ProfileHeader({
     </div>
   )
 }
-

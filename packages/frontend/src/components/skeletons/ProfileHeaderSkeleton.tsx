@@ -23,6 +23,12 @@ export function ProfileHeaderSkeleton() {
               <div className="h-4 w-full max-w-md rounded animate-shimmer" />
               <div className="h-4 w-2/3 max-w-md rounded animate-shimmer" />
             </div>
+
+            {/* Badges */}
+            <div className="flex flex-wrap gap-2 pt-1">
+              <div className="h-8 w-28 rounded-full animate-shimmer" />
+              <div className="h-8 w-24 rounded-full animate-shimmer" />
+            </div>
           </div>
         </div>
 

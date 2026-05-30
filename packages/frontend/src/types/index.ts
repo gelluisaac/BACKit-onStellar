@@ -8,6 +8,19 @@ export interface User {
   isFollowing?: boolean
   bio?: string
   avatarUrl?: string | null
+  badges?: UserBadge[]
+}
+
+export type BadgeType =
+  | 'Early Adopter'
+  | 'Top Predictor'
+  | 'Whale'
+  | 'Hot Streak'
+  | 'Community Leader'
+
+export interface UserBadge {
+  type: BadgeType
+  earnedAt?: string
 }
 
 export interface Call {
