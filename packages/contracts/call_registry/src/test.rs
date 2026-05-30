@@ -93,6 +93,7 @@ mod call_registry {
         ipfs_cid: &Bytes,
         outcome_count: u32,
     ) -> crate::types::Call {
+        client.whitelist_token(stake_token);
         client.create_call(
             creator,
             stake_token,
@@ -484,7 +485,6 @@ mod call_registry {
         assert_eq!(call.id, 1);
         assert_eq!(call.creator, creator);
         assert_eq!(call.stake_amount, 100_000_000);
-        assert_eq!(call.outcome_count, 2);
         assert_eq!(call.outcome, 0);
         assert!(!call.settled);
         assert_eq!(call.condition, ConditionType::TargetAbove(100_000_000_i128));
@@ -590,7 +590,7 @@ mod call_registry {
 
         env.budget().reset_unlimited();
 
-        let updated_call = client.stake_on_call(&staker, &call.id, &50_000_000_i128, &1);
+        let _updated_call = client.stake_on_call(&staker, &call.id, &50_000_000_i128, &1);
 
         let outcome_stakes = client.get_outcome_stakes(&call.id);
         assert_eq!(outcome_stakes.get(1).unwrap_or(0), 50_000_000);
@@ -626,7 +626,7 @@ mod call_registry {
 
         env.budget().reset_unlimited();
 
-        let updated_call = client.stake_on_call(&staker, &call.id, &30_000_000_i128, &2);
+        let _updated_call = client.stake_on_call(&staker, &call.id, &30_000_000_i128, &2);
 
         let outcome_stakes = client.get_outcome_stakes(&call.id);
         assert_eq!(outcome_stakes.get(1).unwrap_or(0), 0);
@@ -793,10 +793,10 @@ mod call_registry {
 
         let stats = client.get_call_stats(&call.id);
 
-        assert_eq!(stats.outcome_stakes.get(1).unwrap_or(0), 50_000_000);
-        assert_eq!(stats.outcome_stakes.get(2).unwrap_or(0), 30_000_000);
-        assert_eq!(stats.outcome_stake_counts.get(1).unwrap_or(0), 1);
-        assert_eq!(stats.outcome_stake_counts.get(2).unwrap_or(0), 1);
+        assert_eq!(stats.total_up_stake, 50_000_000);
+        assert_eq!(stats.total_down_stake, 30_000_000);
+        assert_eq!(stats.up_stake_count, 1);
+        assert_eq!(stats.down_stake_count, 1);
         assert_eq!(stats.total_stakes, 2);
     }
 
@@ -1226,7 +1226,7 @@ mod call_registry {
         client.stake_on_call(&staker2, &call.id, &30_000_000_i128, &1);
         client.stake_on_call(&staker3, &call.id, &40_000_000_i128, &2);
 
-        let call_updated = client.get_call(&call.id);
+        let _call_updated = client.get_call(&call.id);
 
         let outcome_stakes = client.get_outcome_stakes(&call.id);
         assert_eq!(outcome_stakes.get(1).unwrap_or(0), 80_000_000);
@@ -1354,6 +1354,7 @@ mod call_registry {
             &pair_id,
             &ipfs_cid,
             &ConditionType::TargetAbove(100_000_000_i128),
+            &2,
         );
     }
 
@@ -1603,7 +1604,7 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
@@ -1624,7 +1625,6 @@ mod call_registry {
         );
 
         assert_eq!(call.id, 1);
-        assert_eq!(call.outcome_count, 3);
         assert_eq!(call.outcome, 0);
         assert!(!call.settled);
     }
@@ -1635,7 +1635,7 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
@@ -1671,7 +1671,7 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
@@ -1695,12 +1695,10 @@ mod call_registry {
 
         client.stake_on_call(&staker1, &call.id, &50_000_000_i128, &1);
         client.stake_on_call(&staker2, &call.id, &30_000_000_i128, &2);
-        client.stake_on_call(&staker3, &call.id, &40_000_000_i128, &3);
 
         let outcome_stakes = client.get_outcome_stakes(&call.id);
         assert_eq!(outcome_stakes.get(1).unwrap_or(0), 50_000_000);
         assert_eq!(outcome_stakes.get(2).unwrap_or(0), 30_000_000);
-        assert_eq!(outcome_stakes.get(3).unwrap_or(0), 40_000_000);
     }
 
     #[test]
@@ -1710,7 +1708,7 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
@@ -1730,11 +1728,12 @@ mod call_registry {
             3,
         );
 
+        // Position 4 is invalid (only 1=UP, 2=DOWN are allowed)
         let result = client.try_stake_on_call(&staker, &call.id, &50_000_000_i128, &4);
         assert_eq!(
             result,
             Err(Ok(CallRegistryError::InvalidPosition)),
-            "position 4 on 3-outcome call should return InvalidPosition"
+            "position 4 should return InvalidPosition"
         );
 
         let result = client.try_stake_on_call(&staker, &call.id, &50_000_000_i128, &0);
@@ -1751,7 +1750,7 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
@@ -1785,7 +1784,7 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
@@ -1830,7 +1829,7 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
@@ -1855,12 +1854,10 @@ mod call_registry {
         client.stake_on_call(&staker1, &call.id, &50_000_000_i128, &1);
         client.stake_on_call(&staker2, &call.id, &30_000_000_i128, &2);
         client.stake_on_call(&staker1, &call.id, &20_000_000_i128, &2);
-        client.stake_on_call(&staker2, &call.id, &40_000_000_i128, &3);
 
         let outcome_stakes = client.get_outcome_stakes(&call.id);
         assert_eq!(outcome_stakes.get(1).unwrap_or(0), 50_000_000);
         assert_eq!(outcome_stakes.get(2).unwrap_or(0), 50_000_000);
-        assert_eq!(outcome_stakes.get(3).unwrap_or(0), 40_000_000);
     }
 
     #[test]
@@ -1870,7 +1867,7 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
@@ -1894,11 +1891,10 @@ mod call_registry {
 
         client.stake_on_call(&staker, &call.id, &50_000_000_i128, &1);
         client.stake_on_call(&staker, &call.id, &30_000_000_i128, &2);
-        client.stake_on_call(&staker, &call.id, &40_000_000_i128, &3);
+        client.stake_on_call(&staker, &call.id, &40_000_000_i128, &2);
 
         assert_eq!(client.get_staker_stake(&call.id, &staker, &1), 50_000_000);
-        assert_eq!(client.get_staker_stake(&call.id, &staker, &2), 30_000_000);
-        assert_eq!(client.get_staker_stake(&call.id, &staker, &3), 40_000_000);
+        assert_eq!(client.get_staker_stake(&call.id, &staker, &2), 70_000_000);
     }
 
     #[test]
@@ -1909,7 +1905,7 @@ mod call_registry {
         let contract_id = env.register_contract(None, CallRegistry);
         let client = CallRegistryClient::new(&env, &contract_id);
 
-        client.initialize(&admin, &outcome_manager);
+        client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
         let stake_token = env.register_contract(None, MockToken);
@@ -1934,16 +1930,14 @@ mod call_registry {
         client.stake_on_call(&staker1, &call.id, &50_000_000_i128, &1);
         client.stake_on_call(&staker2, &call.id, &30_000_000_i128, &2);
         client.stake_on_call(&staker1, &call.id, &20_000_000_i128, &2);
-        client.stake_on_call(&staker2, &call.id, &40_000_000_i128, &3);
+        client.stake_on_call(&staker2, &call.id, &40_000_000_i128, &2);
 
         let stats = client.get_call_stats(&call.id);
 
-        assert_eq!(stats.outcome_stakes.get(1).unwrap_or(0), 50_000_000);
-        assert_eq!(stats.outcome_stakes.get(2).unwrap_or(0), 50_000_000);
-        assert_eq!(stats.outcome_stakes.get(3).unwrap_or(0), 40_000_000);
-        assert_eq!(stats.outcome_stake_counts.get(1).unwrap_or(0), 1);
-        assert_eq!(stats.outcome_stake_counts.get(2).unwrap_or(0), 2);
-        assert_eq!(stats.outcome_stake_counts.get(3).unwrap_or(0), 1);
-        assert_eq!(stats.total_stakes, 4);
+        assert_eq!(stats.total_up_stake, 50_000_000);
+        assert_eq!(stats.total_down_stake, 90_000_000); // 30_000_000 + 20_000_000 + 40_000_000
+        assert_eq!(stats.total_stakes, 3);
+        assert_eq!(stats.up_stake_count, 1);
+        assert_eq!(stats.down_stake_count, 2);
     }
 }
