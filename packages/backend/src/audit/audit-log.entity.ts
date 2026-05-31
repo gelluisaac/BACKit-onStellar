@@ -21,6 +21,14 @@ export enum AuditActionType {
   MARKET_DISPUTED = 'MARKET_DISPUTED',
   MARKET_PAUSED = 'MARKET_PAUSED',
 
+  // Call moderation
+  CALL_HIDDEN = 'CALL_HIDDEN',
+  CALL_UNHIDDEN = 'CALL_UNHIDDEN',
+
+  // User moderation
+  USER_BANNED = 'USER_BANNED',
+  USER_UNBANNED = 'USER_UNBANNED',
+
   // Generic admin actions (extend as needed)
   ADMIN_ACTION = 'ADMIN_ACTION',
 }

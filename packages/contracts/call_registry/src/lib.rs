@@ -7,7 +7,6 @@ mod errors;
 mod events;
 mod storage;
 mod types;
-
 #[cfg(test)]
 mod test;
 
@@ -140,6 +139,15 @@ impl CallRegistry {
         }
         let call_id = next_call_id(&env);
 
+        let mut outcome_stakes = soroban_sdk::Map::new(&env);
+        let mut stakes = soroban_sdk::Map::new(&env);
+
+        // Initialize maps for each outcome
+        for i in 1..=outcome_count {
+            outcome_stakes.set(i, 0);
+            stakes.set(i, soroban_sdk::Map::new(&env));
+        }
+
         let call = Call {
             id: call_id,
             creator: creator.clone(),
@@ -149,13 +157,15 @@ impl CallRegistry {
             token_address: token_address.clone(),
             pair_id: pair_id.clone(),
             ipfs_cid: ipfs_cid.clone(),
-            total_up_stake: 0,
-            total_down_stake: 0,
+            outcome_count,
+            outcome_stakes,
+            stakes,
             outcome: 0,
             start_price: 0,
             end_price: 0,
             condition,
             settled: false,
+            voided: false,
             created_at: current_timestamp,
             cancelled: false,
             metadata_version: 0,
@@ -290,8 +300,12 @@ impl CallRegistry {
             panic!("Call has been cancelled");
         }
 
+        if call.voided {
+            panic!("Call has been voided");
+        }
+
         // Validate position is within valid range
-        if position < 1 || position > 2 {
+        if position < 1 || position > call.outcome_count {
             return Err(CallRegistryError::InvalidPosition);
         }
 
@@ -305,21 +319,14 @@ impl CallRegistry {
         let token_client = token::Client::new(&env, &call.stake_token);
         token_client.transfer(&staker, &env.current_contract_address(), &amount);
 
-        let new_stake = current_stake + amount;
+        // Update stake maps
+        let current_total = call.outcome_stakes.get(position).unwrap_or(0);
+        call.outcome_stakes.set(position, current_total + amount);
 
-        if position == OUTCOME_UP {
-            if current_stake == 0 {
-                set_up_staker_count(&env, call_id, get_up_staker_count(&env, call_id) + 1);
-            }
-            call.total_up_stake += amount;
-        } else if position == OUTCOME_DOWN {
-            if current_stake == 0 {
-                set_down_staker_count(&env, call_id, get_down_staker_count(&env, call_id) + 1);
-            }
-            call.total_down_stake += amount;
-        }
-
-        set_user_stake(&env, call_id, &staker, position, new_stake);
+        let mut outcome_stakers = call.stakes.get(position).unwrap_or_else(|| soroban_sdk::Map::new(&env));
+        let current_staker_stake = outcome_stakers.get(staker.clone()).unwrap_or(0);
+        outcome_stakers.set(staker.clone(), current_staker_stake + amount);
+        call.stakes.set(position, outcome_stakers);
 
         set_call(&env, &call);
         add_staker_call(&env, &staker, call_id);
@@ -360,13 +367,17 @@ impl CallRegistry {
         let mut call = get_call(&env, call_id).ok_or(CallRegistryError::CallNotFound)?;
 
         // Validate outcome is within valid range
-        if outcome < 1 || outcome > 2 {
+        if outcome < 1 || outcome > call.outcome_count {
             return Err(CallRegistryError::InvalidOutcome);
         }
 
         let current_timestamp = env.ledger().timestamp();
         if current_timestamp < call.end_ts {
             return Err(CallRegistryError::CallNotEnded);
+        }
+
+        if call.voided {
+            panic!("Call has been voided");
         }
 
         call.outcome = outcome;
@@ -563,15 +574,21 @@ impl CallRegistry {
     /// * [`CallRegistryError::CallNotFound`] – `call_id` does not exist.
     pub fn get_call_stats(env: Env, call_id: u64) -> Result<CallStats, CallRegistryError> {
         let call = get_call(&env, call_id).ok_or(CallRegistryError::CallNotFound)?;
-        let up_stake_count = get_up_staker_count(&env, call_id);
-        let down_stake_count = get_down_staker_count(&env, call_id);
+
+        let mut outcome_stake_counts = soroban_sdk::Map::new(&env);
+        let mut total_stakes = 0;
+
+        for i in 1..=call.outcome_count {
+            let outcome_stakers = call.stakes.get(i).unwrap_or_else(|| soroban_sdk::Map::new(&env));
+            let count = outcome_stakers.len();
+            outcome_stake_counts.set(i, count);
+            total_stakes += count;
+        }
 
         Ok(CallStats {
-            total_up_stake: call.total_up_stake,
-            total_down_stake: call.total_down_stake,
-            total_stakes: up_stake_count + down_stake_count,
-            up_stake_count,
-            down_stake_count,
+            outcome_stakes: call.outcome_stakes,
+            outcome_stake_counts,
+            total_stakes,
         })
     }
 
@@ -599,25 +616,22 @@ impl CallRegistry {
         staker: Address,
         position: u32,
     ) -> Result<i128, CallRegistryError> {
-        // Verify call exists
-        get_call(&env, call_id).ok_or(CallRegistryError::CallNotFound)?;
+        let call = get_call(&env, call_id).ok_or(CallRegistryError::CallNotFound)?;
 
-        match position {
-            OUTCOME_UP => Ok(get_user_stake(&env, call_id, &staker, position)),
-            OUTCOME_DOWN => Ok(get_user_stake(&env, call_id, &staker, position)),
-            _ => Err(CallRegistryError::InvalidPosition),
+        if position < 1 || position > call.outcome_count {
+            return Err(CallRegistryError::InvalidPosition);
         }
+
+        let outcome_stakers = call.stakes.get(position).unwrap_or_else(|| soroban_sdk::Map::new(&env));
+        Ok(outcome_stakers.get(staker).unwrap_or(0))
     }
 
-    /// Get the total stakes for each outcome of a call (UP / DOWN).
+    /// Get the total stakes for each outcome of a call.
     /// # Errors
     /// * [`CallRegistryError::CallNotFound`] – `call_id` does not exist.
     pub fn get_outcome_stakes(env: Env, call_id: u64) -> Result<soroban_sdk::Map<u32, i128>, CallRegistryError> {
         let call = get_call(&env, call_id).ok_or(CallRegistryError::CallNotFound)?;
-        let mut result = soroban_sdk::Map::new(&env);
-        result.set(OUTCOME_UP, call.total_up_stake);
-        result.set(OUTCOME_DOWN, call.total_down_stake);
-        Ok(result)
+        Ok(call.outcome_stakes)
     }
 
     /// Get total number of calls created.
@@ -662,5 +676,66 @@ impl CallRegistry {
         emit_contract_upgraded(&env, old_version, new_version, &config.admin);
 
         Ok(())
+    }
+
+    /// Void a call (admin only). Can be called at any time.
+    /// Once voided, no new stakes or resolutions are accepted.
+    /// Emits CallVoided.
+    pub fn void_call(env: Env, call_id: u64) {
+        let config = get_config(&env).expect("Not initialized");
+        config.admin.require_auth();
+
+        let mut call = get_call(&env, call_id).expect("Call not found");
+
+        if call.voided {
+            panic!("Call already voided");
+        }
+
+        if call.settled {
+            panic!("Call already settled");
+        }
+
+        call.voided = true;
+        set_call(&env, &call);
+        extend_storage_ttl(&env);
+
+        emit_call_voided(&env, call_id, &config.admin);
+    }
+
+    /// Claim a full refund for a voided call.
+    /// Refunds the exact stake the caller placed (up + down combined).
+    /// Emits VoidRefundClaimed.
+    pub fn claim_void_refund(env: Env, staker: Address, call_id: u64) {
+        staker.require_auth();
+
+        let call = get_call(&env, call_id).expect("Call not found");
+
+        if !call.voided {
+            panic!("Call is not voided");
+        }
+
+        if is_void_refund_claimed(&env, call_id, &staker) {
+            panic!("Refund already claimed");
+        }
+
+        // Calculate total refund across all outcomes
+        let mut total_refund = 0;
+        for i in 1..=call.outcome_count {
+            let outcome_stakers = call.stakes.get(i).unwrap_or_else(|| soroban_sdk::Map::new(&env));
+            let stake = outcome_stakers.get(staker.clone()).unwrap_or(0);
+            total_refund += stake;
+        }
+
+        if total_refund <= 0 {
+            panic!("No stake to refund");
+        }
+
+        set_void_refund_claimed(&env, call_id, &staker);
+        extend_storage_ttl(&env);
+
+        let token_client = token::Client::new(&env, &call.stake_token);
+        token_client.transfer(&env.current_contract_address(), &staker, &total_refund);
+
+        emit_void_refund_claimed(&env, call_id, &staker, total_refund);
     }
 }

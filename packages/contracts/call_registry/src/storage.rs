@@ -18,8 +18,7 @@ pub enum DataKey {
     Call(u64),
     StakerCalls(Address),
     UserStake(u64, Address, u32),
-    UpStakerCount(u64),
-    DownStakerCount(u64),
+    VoidRefundClaimed(u64, Address),
 }
 
 /// Store contract configuration
@@ -180,43 +179,23 @@ pub fn get_user_stake(env: &Env, call_id: u64, staker: &Address, position: u32) 
     result.unwrap_or(0)
 }
 
-/// Get up staker count for a call
-pub fn get_up_staker_count(env: &Env, call_id: u64) -> u32 {
-    let key = DataKey::UpStakerCount(call_id);
-    env.storage().persistent().get(&key).unwrap_or(0)
-}
-
-/// Set up staker count for a call
-pub fn set_up_staker_count(env: &Env, call_id: u64, count: u32) {
-    let key = DataKey::UpStakerCount(call_id);
-    env.storage().persistent().set(&key, &count);
-    env.storage().persistent().extend_ttl(
-        &key,
-        PERSISTENT_LIFETIME_THRESHOLD,
-        PERSISTENT_BUMP_AMOUNT,
-    );
-}
-
-/// Get down staker count for a call
-pub fn get_down_staker_count(env: &Env, call_id: u64) -> u32 {
-    let key = DataKey::DownStakerCount(call_id);
-    env.storage().persistent().get(&key).unwrap_or(0)
-}
-
-/// Set down staker count for a call
-pub fn set_down_staker_count(env: &Env, call_id: u64, count: u32) {
-    let key = DataKey::DownStakerCount(call_id);
-    env.storage().persistent().set(&key, &count);
-    env.storage().persistent().extend_ttl(
-        &key,
-        PERSISTENT_LIFETIME_THRESHOLD,
-        PERSISTENT_BUMP_AMOUNT,
-    );
-}
-
 /// Extend contract storage lifetime (for long-term persistence)
 pub fn extend_storage_ttl(env: &Env) {
     env.storage()
         .instance()
         .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+}
+
+/// Mark that a staker has claimed their void refund for a call
+pub fn set_void_refund_claimed(env: &Env, call_id: u64, staker: &Address) {
+    env.storage()
+        .instance()
+        .set(&DataKey::VoidRefundClaimed(call_id, staker.clone()), &true);
+}
+
+/// Check whether a staker has already claimed their void refund
+pub fn is_void_refund_claimed(env: &Env, call_id: u64, staker: &Address) -> bool {
+    env.storage()
+        .instance()
+        .has(&DataKey::VoidRefundClaimed(call_id, staker.clone()))
 }

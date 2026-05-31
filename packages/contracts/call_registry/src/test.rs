@@ -2,8 +2,8 @@
 
 use soroban_sdk::{
     contract, contractimpl,
-    testutils::{Address as _, Events as _, Ledger as _},
-    Address, Bytes, BytesN, Env, IntoVal, Symbol,
+    testutils::{Address as _, Events as _, Ledger as _, MockAuth, MockAuthInvoke},
+    vec, Address, Bytes, BytesN, Env, IntoVal, Symbol,
 };
 
 use crate::errors::CallRegistryError;
@@ -786,8 +786,6 @@ mod call_registry {
             &ipfs_cid,
         );
 
-        env.budget().reset_unlimited();
-
         client.stake_on_call(&staker1, &call.id, &50_000_000_i128, &1);
         client.stake_on_call(&staker2, &call.id, &30_000_000_i128, &2);
 
@@ -925,7 +923,8 @@ mod call_registry {
         client.initialize(&admin, &outcome_manager, &TEST_MIN_STAKE);
         env.ledger().set_timestamp(1000);
 
-        let stake_token = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let stake_token = env.register_stellar_asset_contract(token_admin);
         let token_address = Address::generate(&env);
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
@@ -1146,8 +1145,6 @@ mod call_registry {
             &ipfs_cid,
         );
 
-        env.budget().reset_unlimited();
-
         client.stake_on_call(&staker, &call.id, &50_000_000_i128, &1);
 
         assert_eq!(client.get_staker_stake(&call.id, &staker, &1), 50_000_000);
@@ -1220,8 +1217,6 @@ mod call_registry {
             &ipfs_cid,
         );
 
-        env.budget().reset_unlimited();
-
         client.stake_on_call(&staker1, &call.id, &50_000_000_i128, &1);
         client.stake_on_call(&staker2, &call.id, &30_000_000_i128, &1);
         client.stake_on_call(&staker3, &call.id, &40_000_000_i128, &2);
@@ -1271,7 +1266,35 @@ mod call_registry {
         );
     }
 
-    // ── pause / unpause ───────────────────────────────────────────────────────
+    // ── void lifecycle ────────────────────────────────────────────────────────
+
+    fn make_call(
+        env: &Env,
+        client: &CallRegistryClient,
+        creator: &Address,
+    ) -> (crate::types::Call, Address) {
+        let token_admin = Address::generate(env);
+        let stake_token = env.register_stellar_asset_contract(token_admin);
+        let token_address = Address::generate(env);
+        let pair_id = Bytes::from_slice(env, b"USDC/XLM");
+        let ipfs_cid = Bytes::from_slice(env, b"QmXxxx");
+        client.whitelist_token(&stake_token);
+        let call = client.create_call(
+            creator,
+            &stake_token,
+            &100_000_000_i128,
+            &5000u64,
+            &token_address,
+            &pair_id,
+            &ipfs_cid,
+            &crate::types::ConditionType::TargetAbove(100_000_000_i128),
+        );
+        (call, stake_token)
+    }
+
+    fn mint(env: &Env, token: &Address, to: &Address, amount: i128) {
+        soroban_sdk::token::StellarAssetClient::new(env, token).mint(to, &amount);
+    }
 
     #[test]
     fn test_get_config_paused_default_false() {
@@ -1413,6 +1436,32 @@ mod call_registry {
         client.pause();
         env.ledger().set_timestamp(3000);
 
+        client.resolve_call(&call.id, &1, &150_000_000_i128);
+    }
+
+    #[test]
+    #[should_panic(expected = "Call has been voided")]
+    fn test_void_prevents_staking() {
+        let (env, client, _admin, _om) = setup();
+        env.ledger().set_timestamp(1000);
+        let creator = Address::generate(&env);
+        let staker = Address::generate(&env);
+        let (call, _) = make_call(&env, &client, &creator);
+
+        client.void_call(&call.id);
+        client.stake_on_call(&staker, &call.id, &50_000_000_i128, &1);
+    }
+
+    #[test]
+    #[should_panic(expected = "Call has been voided")]
+    fn test_void_prevents_resolution() {
+        let (env, client, _admin, _om) = setup();
+        env.ledger().set_timestamp(1000);
+        let creator = Address::generate(&env);
+        let (call, _) = make_call(&env, &client, &creator);
+
+        client.void_call(&call.id);
+        env.ledger().set_timestamp(6000);
         client.resolve_call(&call.id, &1, &150_000_000_i128);
     }
 
@@ -1959,5 +2008,145 @@ mod call_registry {
         let fake_hash = BytesN::<32>::from_array(&env, &[0u8; 32]);
         let result = client.try_upgrade(&fake_hash);
         assert!(result.is_err(), "upgrade must fail when not initialized");
+    }
+
+    #[test]
+    #[should_panic(expected = "Call already voided")]
+    fn test_void_call_twice_panics() {
+        let (env, client, _admin, _om) = setup();
+        env.ledger().set_timestamp(1000);
+        let creator = Address::generate(&env);
+        let (call, _) = make_call(&env, &client, &creator);
+
+        client.void_call(&call.id);
+        client.void_call(&call.id);
+    }
+
+    #[test]
+    fn test_void_call_sets_voided_flag() {
+        let (env, client, _admin, _om) = setup();
+        env.ledger().set_timestamp(1000);
+        let creator = Address::generate(&env);
+        let (call, _) = make_call(&env, &client, &creator);
+
+        client.void_call(&call.id);
+
+        let updated = client.get_call(&call.id);
+        assert!(updated.voided);
+    }
+
+    #[test]
+    fn test_void_call_emits_call_voided_event() {
+        let (env, client, _admin, _om) = setup();
+        env.ledger().set_timestamp(1000);
+        let creator = Address::generate(&env);
+        let (call, _) = make_call(&env, &client, &creator);
+
+        client.void_call(&call.id);
+
+        let events = env.events().all();
+        let last = events.last().expect("no events");
+        assert_eq!(
+            last.1,
+            vec![
+                &env,
+                "call_registry".into_val(&env),
+                "call_voided".into_val(&env),
+            ]
+        );
+        let (event_call_id, _voided_by): (u64, Address) = last.2.into_val(&env);
+        assert_eq!(event_call_id, call.id);
+    }
+
+    #[test]
+    fn test_claim_void_refund_success() {
+        let (env, client, _admin, _om) = setup();
+        env.ledger().set_timestamp(1000);
+        let creator = Address::generate(&env);
+        let staker = Address::generate(&env);
+        let (call, stake_token) = make_call(&env, &client, &creator);
+
+        mint(&env, &stake_token, &staker, 200_000_000_i128);
+        client.stake_on_call(&staker, &call.id, &50_000_000_i128, &1);
+        client.stake_on_call(&staker, &call.id, &20_000_000_i128, &2);
+
+        client.void_call(&call.id);
+        client.claim_void_refund(&staker, &call.id);
+    }
+
+    #[test]
+    fn test_claim_void_refund_emits_event() {
+        let (env, client, _admin, _om) = setup();
+        env.ledger().set_timestamp(1000);
+        let creator = Address::generate(&env);
+        let staker = Address::generate(&env);
+        let (call, stake_token) = make_call(&env, &client, &creator);
+
+        mint(&env, &stake_token, &staker, 100_000_000_i128);
+        client.stake_on_call(&staker, &call.id, &50_000_000_i128, &1);
+
+        client.void_call(&call.id);
+        client.claim_void_refund(&staker, &call.id);
+
+        let events = env.events().all();
+        let last = events.last().expect("no events");
+        assert_eq!(
+            last.1,
+            vec![
+                &env,
+                "call_registry".into_val(&env),
+                "void_refund_claimed".into_val(&env),
+            ]
+        );
+        let (event_call_id, event_staker, amount): (u64, Address, i128) =
+            last.2.into_val(&env);
+        assert_eq!(event_call_id, call.id);
+        assert_eq!(event_staker, staker);
+        assert_eq!(amount, 50_000_000);
+    }
+
+    #[test]
+    #[should_panic(expected = "Refund already claimed")]
+    fn test_double_claim_void_refund_panics() {
+        let (env, client, _admin, _om) = setup();
+        env.ledger().set_timestamp(1000);
+        let creator = Address::generate(&env);
+        let staker = Address::generate(&env);
+        let (call, stake_token) = make_call(&env, &client, &creator);
+
+        mint(&env, &stake_token, &staker, 100_000_000_i128);
+        client.stake_on_call(&staker, &call.id, &50_000_000_i128, &1);
+
+        client.void_call(&call.id);
+        client.claim_void_refund(&staker, &call.id);
+        client.claim_void_refund(&staker, &call.id);
+    }
+
+    #[test]
+    #[should_panic(expected = "Call is not voided")]
+    fn test_claim_refund_on_non_voided_call_panics() {
+        let (env, client, _admin, _om) = setup();
+        env.ledger().set_timestamp(1000);
+        let creator = Address::generate(&env);
+        let staker = Address::generate(&env);
+        let (call, stake_token) = make_call(&env, &client, &creator);
+
+        mint(&env, &stake_token, &staker, 100_000_000_i128);
+        client.stake_on_call(&staker, &call.id, &50_000_000_i128, &1);
+
+        client.claim_void_refund(&staker, &call.id);
+    }
+
+    #[test]
+    #[should_panic(expected = "No stake to refund")]
+    fn test_claim_refund_with_no_stake_panics() {
+        let (env, client, _admin, _om) = setup();
+        env.ledger().set_timestamp(1000);
+        let creator = Address::generate(&env);
+        let non_staker = Address::generate(&env);
+        let (call, _) = make_call(&env, &client, &creator);
+
+        client.void_call(&call.id);
+        client.claim_void_refund(&non_staker, &call.id);
     }
 }

@@ -19,6 +19,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { TokensModule } from './token/tokens.module';
 import { RelayModule } from './relay/relay.module';
 import { CommentsModule } from './comments/comments.module';
+import { AdminModule } from './admin/admin.module';
 import { PayoutsModule } from './payouts/payouts.module';
 import { QueuesModule } from './common/queues/queues.module';
 import { StorageModule } from './storage/storage.module';
@@ -81,6 +82,7 @@ import { TreasuryModule } from './treasury/treasury.module';
     FirewallModule,
     RelayModule,
     CommentsModule,
+    AdminModule,
   ],
   controllers: [],
   providers: [],

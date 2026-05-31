@@ -180,3 +180,21 @@ pub fn emit_contract_upgraded(env: &Env, old_version: u32, new_version: u32, adm
         (old_version, new_version, admin.clone()),
     );
 }
+
+// ── Void events ───────────────────────────────────────────────────────────────
+
+/// Emitted when an admin voids a call
+pub fn emit_call_voided(env: &Env, call_id: u64, voided_by: &Address) {
+    env.events().publish(
+        ("call_registry", "call_voided"),
+        (call_id, voided_by.clone()),
+    );
+}
+
+/// Emitted when a staker claims a void refund
+pub fn emit_void_refund_claimed(env: &Env, call_id: u64, staker: &Address, amount: i128) {
+    env.events().publish(
+        ("call_registry", "void_refund_claimed"),
+        (call_id, staker.clone(), amount),
+    );
+}

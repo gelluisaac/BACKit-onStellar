@@ -44,6 +44,9 @@ export class Users {
   })
   badges: Badge[];
 
+  @Column({ type: 'boolean', default: false })
+  banned: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

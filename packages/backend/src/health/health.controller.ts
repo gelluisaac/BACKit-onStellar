@@ -8,6 +8,7 @@ import {
   ApiOkResponse,
   ApiResponse,
 } from '@nestjs/swagger';
+import { ShutdownService } from './shutdown.service';
 
 @ApiTags('health')
 @Controller('health')
@@ -17,6 +18,7 @@ export class HealthController {
   constructor(
     private readonly dataSource: DataSource,
     private readonly httpService: HttpService,
+    private readonly shutdownService: ShutdownService,
   ) {
     this.rpcUrl =
       process.env.STELLAR_RPC_URL ?? 'https://soroban-testnet.stellar.org';
@@ -77,6 +79,22 @@ export class HealthController {
     }
 
     return payload;
+  }
+
+  @Get('ready')
+  @ApiOperation({
+    summary: 'Readiness probe',
+    description:
+      'Returns 200 when the application is ready to serve traffic. ' +
+      'Returns 503 during graceful shutdown so load balancers stop routing new requests.',
+  })
+  @ApiOkResponse({ description: 'Application is ready' })
+  @ApiResponse({ status: 503, description: 'Application is shutting down' })
+  ready() {
+    if (this.shutdownService.isShuttingDown()) {
+      throw new ServiceUnavailableException({ status: 'shutting_down' });
+    }
+    return { status: 'ready' };
   }
 
   // ─── Private Checks ───────────────────────────────────────────────────────
