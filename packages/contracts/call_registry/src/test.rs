@@ -791,10 +791,10 @@ mod call_registry {
 
         let stats = client.get_call_stats(&call.id);
 
-        assert_eq!(stats.total_up_stake, 50_000_000);
-        assert_eq!(stats.total_down_stake, 30_000_000);
-        assert_eq!(stats.up_stake_count, 1);
-        assert_eq!(stats.down_stake_count, 1);
+        assert_eq!(stats.outcome_stakes.get(1).unwrap_or(0), 50_000_000);
+        assert_eq!(stats.outcome_stakes.get(2).unwrap_or(0), 30_000_000);
+        assert_eq!(stats.outcome_stake_counts.get(1).unwrap_or(0), 1);
+        assert_eq!(stats.outcome_stake_counts.get(2).unwrap_or(0), 1);
         assert_eq!(stats.total_stakes, 2);
     }
 
@@ -1288,6 +1288,7 @@ mod call_registry {
             &pair_id,
             &ipfs_cid,
             &crate::types::ConditionType::TargetAbove(100_000_000_i128),
+            &2,
         );
         (call, stake_token)
     }
@@ -1982,11 +1983,11 @@ mod call_registry {
 
         let stats = client.get_call_stats(&call.id);
 
-        assert_eq!(stats.total_up_stake, 50_000_000);
-        assert_eq!(stats.total_down_stake, 90_000_000); // 30_000_000 + 20_000_000 + 40_000_000
+        assert_eq!(stats.outcome_stakes.get(1).unwrap_or(0), 50_000_000);
+        assert_eq!(stats.outcome_stakes.get(2).unwrap_or(0), 90_000_000); // 30_000_000 + 20_000_000 + 40_000_000
         assert_eq!(stats.total_stakes, 3);
-        assert_eq!(stats.up_stake_count, 1);
-        assert_eq!(stats.down_stake_count, 2);
+        assert_eq!(stats.outcome_stake_counts.get(1).unwrap_or(0), 1);
+        assert_eq!(stats.outcome_stake_counts.get(2).unwrap_or(0), 2);
     }
 
     // ── upgrade / version ──────────────────────────────────────────────────────
