@@ -17,6 +17,15 @@ use events::*;
 use storage::*;
 use types::*;
 
+/// Check that contract is not paused. Panics if paused.
+fn require_no_pause(env: &Env) {
+    if let Some(config) = get_config(env) {
+        if config.paused {
+            panic!("Contract is paused");
+        }
+    }
+}
+
 const MAX_CALL_PAGE_SIZE: u32 = 20;
 const CONTRACT_VERSION: u32 = 1;
 
@@ -104,6 +113,7 @@ impl CallRegistry {
         condition: ConditionType,
         outcome_count: u32,
     ) -> Result<Call, CallRegistryError> {
+        require_no_pause(&env);
         creator.require_auth();
 
         let config = get_config(&env).ok_or(CallRegistryError::NotInitialized)?;
@@ -253,6 +263,7 @@ impl CallRegistry {
         amount: i128,
         position: u32,
     ) -> Result<Call, CallRegistryError> {
+        require_no_pause(&env);
         staker.require_auth();
 
         if amount <= 0 {
@@ -342,6 +353,7 @@ impl CallRegistry {
         outcome: u32,
         end_price: i128,
     ) -> Result<Call, CallRegistryError> {
+        require_no_pause(&env);
         let config = get_config(&env).ok_or(CallRegistryError::NotInitialized)?;
         config.outcome_manager.require_auth();
 
