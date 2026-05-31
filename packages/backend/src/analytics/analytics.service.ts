@@ -1,5 +1,7 @@
 import { InjectRepository } from '@nestjs/typeorm';
 import { TotalValueLockedResponseDto } from './dto/tvl.dto';
+import { TokensService } from '../token/tokens.service';
+import { CoinGeckoService } from '../oracle/coinGeko.service';
 import { Injectable } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -33,6 +35,8 @@ export class AnalyticsService {
 
     private readonly dataSource: DataSource,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private readonly tokensService: TokensService,
+    private readonly coinGeckoService: CoinGeckoService,
   ) {}
 
   /**
@@ -529,28 +533,83 @@ export class AnalyticsService {
   /**
    * Aggregates a user's active Portfolio "Total Value Locked".
    *
-   * Loops over every StakeLedger row where:
+   * Loops over every Stake row where:
    *   - userAddress matches the caller
-   *   - the parent Call still has outcome === 'PENDING'  (i.e. unresolved)
+   *   - the parent Call has status OPEN or SETTLING
    *
-   * Returns the XLM sum of those amounts and a count of matching rows.
+   * Returns the USDC sum of those amounts, a count, and a breakdown.
    */
   async getTotalValueLocked(
     userAddress: string,
   ): Promise<TotalValueLockedResponseDto> {
-    const result = await this.stakeLedgerRepository
+    const stakes = await this.stakeLedgerRepository
       .createQueryBuilder('stake')
-      .innerJoin('stake.call', 'call')
+      .innerJoinAndSelect('stake.call', 'call')
       .where('stake.userAddress = :userAddress', { userAddress })
-      .andWhere('call.outcome = :outcome', { outcome: 'PENDING' })
-      .select('COALESCE(SUM(stake.amount), 0)', 'totalValueLocked')
-      .addSelect('COUNT(stake.id)', 'pendingStakesCount')
-      .getRawOne<{ totalValueLocked: string; pendingStakesCount: string }>();
+      .andWhere('call.status IN (:...statuses)', { statuses: ['OPEN', 'SETTLING'] })
+      .getMany();
+
+    if (!stakes.length) {
+      return {
+        userAddress,
+        totalValueLocked: 0,
+        pendingStakesCount: 0,
+        breakdown: [],
+      };
+    }
+
+    // Get all active tokens to map addresses to symbols
+    const tokens = await this.tokensService.getAll();
+    const tokenMap = new Map(tokens.map(t => [t.assetIssuer || t.assetCode, t.assetCode]));
+
+    // Identify unique symbols needed for price lookup
+    const symbolsToFetch = new Set<string>();
+    stakes.forEach(stake => {
+      const stakeToken = stake.call.stakeToken;
+      const symbol = stakeToken ? tokenMap.get(stakeToken) || 'XLM' : 'XLM'; // fallback
+      symbolsToFetch.add(symbol);
+    });
+
+    // Fetch prices in USD
+    const prices = await this.coinGeckoService.getPrices(Array.from(symbolsToFetch));
+
+    let totalLocked = 0;
+    const breakdown = stakes.map(stake => {
+      const call = stake.call;
+      const stakeToken = call.stakeToken;
+      const tokenSymbol = stakeToken ? tokenMap.get(stakeToken) || 'XLM' : 'XLM';
+      const usdPrice = prices.get(tokenSymbol) || 0; // Default to 0 if price missing
+
+      const amount = Number(stake.amount);
+      const usdValue = amount * usdPrice;
+      totalLocked += usdValue;
+
+      // Calculate potential win
+      const totalYes = Number(call.totalYesStake || 0);
+      const totalNo = Number(call.totalNoStake || 0);
+      const poolSize = stake.position === 'YES' ? totalYes : totalNo;
+      const totalPool = totalYes + totalNo;
+
+      let potentialWin = 0;
+      if (poolSize > 0) {
+        potentialWin = (amount / poolSize) * totalPool;
+      }
+      const potentialWinUsd = potentialWin * usdPrice;
+
+      return {
+        callId: call.id,
+        amount: Number(usdValue.toFixed(2)),
+        position: stake.position,
+        tokenSymbol,
+        potentialWin: Number(potentialWinUsd.toFixed(2)),
+      };
+    });
 
     return {
       userAddress,
-      totalValueLocked: parseFloat(result?.totalValueLocked ?? '0'),
-      pendingStakesCount: parseInt(result?.pendingStakesCount ?? '0', 10),
+      totalValueLocked: Number(totalLocked.toFixed(2)),
+      pendingStakesCount: stakes.length,
+      breakdown,
     };
   }
 }

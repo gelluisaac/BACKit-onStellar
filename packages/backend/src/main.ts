@@ -3,6 +3,7 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { AppModule } from './app.module';
+import { configureHttpSecurity } from './security/http-security';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -10,11 +11,7 @@ async function bootstrap() {
   // Attach the Socket.io WebSocket adapter — required for the EventsGateway
   app.useWebSocketAdapter(new IoAdapter(app));
 
-  // Enable CORS
-  app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true,
-  });
+  configureHttpSecurity(app);
 
   // Global validation pipe
   app.useGlobalPipes(

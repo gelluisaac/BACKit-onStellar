@@ -5,14 +5,26 @@ import { Stake } from './entities/stake.entity';
 import { Call } from './entities/call.entity';
 import { DataSource } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { TokensService } from '../token/tokens.service';
+import { CoinGeckoService } from '../oracle/coinGeko.service';
 
 const mockQb = {
   innerJoin: jest.fn().mockReturnThis(),
+  innerJoinAndSelect: jest.fn().mockReturnThis(),
+  leftJoin: jest.fn().mockReturnThis(),
+  leftJoinAndSelect: jest.fn().mockReturnThis(),
   where: jest.fn().mockReturnThis(),
   andWhere: jest.fn().mockReturnThis(),
   select: jest.fn().mockReturnThis(),
   addSelect: jest.fn().mockReturnThis(),
+  groupBy: jest.fn().mockReturnThis(),
+  orderBy: jest.fn().mockReturnThis(),
+  skip: jest.fn().mockReturnThis(),
+  take: jest.fn().mockReturnThis(),
   getRawOne: jest.fn(),
+  getRawMany: jest.fn(),
+  getMany: jest.fn(),
+  getManyAndCount: jest.fn(),
 };
 
 const mockStakeLedgerRepository = {
@@ -31,6 +43,14 @@ const mockCacheManager = {
   get: jest.fn(),
   set: jest.fn(),
   del: jest.fn(),
+};
+
+const mockTokensService = {
+  getAll: jest.fn(),
+};
+
+const mockCoinGeckoService = {
+  getPrices: jest.fn(),
 };
 
 describe('AnalyticsService – getTotalValueLocked', () => {
@@ -60,6 +80,14 @@ describe('AnalyticsService – getTotalValueLocked', () => {
           provide: CACHE_MANAGER,
           useValue: mockCacheManager,
         },
+        {
+          provide: TokensService,
+          useValue: mockTokensService,
+        },
+        {
+          provide: CoinGeckoService,
+          useValue: mockCoinGeckoService,
+        },
       ],
     }).compile();
 
@@ -67,51 +95,61 @@ describe('AnalyticsService – getTotalValueLocked', () => {
   });
 
   it('returns correct TVL and count when pending stakes exist', async () => {
-    mockQb.getRawOne.mockResolvedValue({
-      totalValueLocked: '1250.75',
-      pendingStakesCount: '8',
-    });
+    mockQb.getMany.mockResolvedValue([
+      {
+        amount: '100',
+        position: 'YES',
+        call: {
+          id: 'call-1',
+          stakeToken: 'USDC-ADDR',
+          totalYesStake: '200',
+          totalNoStake: '100',
+        }
+      },
+      {
+        amount: '50',
+        position: 'NO',
+        call: {
+          id: 'call-2',
+          stakeToken: 'XLM-ADDR',
+          totalYesStake: '50',
+          totalNoStake: '50',
+        }
+      }
+    ]);
+
+    mockTokensService.getAll.mockResolvedValue([
+      { assetIssuer: 'USDC-ADDR', assetCode: 'USDC' },
+      { assetIssuer: 'XLM-ADDR', assetCode: 'XLM' },
+    ]);
+
+    const mockPrices = new Map<string, number>();
+    mockPrices.set('USDC', 1);
+    mockPrices.set('XLM', 0.1);
+    mockCoinGeckoService.getPrices.mockResolvedValue(mockPrices);
 
     const result = await service.getTotalValueLocked('GBXXX');
 
-    expect(result).toEqual({
-      userAddress: 'GBXXX',
-      totalValueLocked: 1250.75,
-      pendingStakesCount: 8,
-    });
+    expect(result.userAddress).toEqual('GBXXX');
+    expect(result.pendingStakesCount).toBe(2);
+    expect(result.totalValueLocked).toBe(105); // 100*1 + 50*0.1 = 105
 
-    // Assert the query was scoped correctly
-    expect(mockQb.where).toHaveBeenCalledWith(
-      'stake.userAddress = :userAddress',
-      { userAddress: 'GBXXX' },
-    );
-    expect(mockQb.andWhere).toHaveBeenCalledWith('call.outcome = :outcome', {
-      outcome: 'PENDING',
-    });
+    expect(result.breakdown).toHaveLength(2);
+    expect(result.breakdown[0].tokenSymbol).toBe('USDC');
+    expect(result.breakdown[0].potentialWin).toBe(150); // (100 / 200) * 300 * 1
+    expect(result.breakdown[1].tokenSymbol).toBe('XLM');
+    expect(result.breakdown[1].potentialWin).toBe(10); // (50 / 50) * 100 * 0.1
   });
 
   it('returns zeros when the user has no pending stakes', async () => {
-    // DB returns COALESCE default — still a string from getRawOne
-    mockQb.getRawOne.mockResolvedValue({
-      totalValueLocked: '0',
-      pendingStakesCount: '0',
-    });
+    mockQb.getMany.mockResolvedValue([]);
 
     const result = await service.getTotalValueLocked('GBYYY');
 
     expect(result.totalValueLocked).toBe(0);
     expect(result.pendingStakesCount).toBe(0);
     expect(result.userAddress).toBe('GBYYY');
-  });
-
-  it('handles null getRawOne result gracefully', async () => {
-    // Edge case: getRawOne can return undefined if the driver returns nothing
-    mockQb.getRawOne.mockResolvedValue(undefined);
-
-    const result = await service.getTotalValueLocked('GBZZZ');
-
-    expect(result.totalValueLocked).toBe(0);
-    expect(result.pendingStakesCount).toBe(0);
+    expect(result.breakdown).toEqual([]);
   });
 });
 
@@ -140,6 +178,14 @@ describe('AnalyticsService - calculateReputationScore', () => {
         {
           provide: CACHE_MANAGER,
           useValue: mockCacheManager,
+        },
+        {
+          provide: TokensService,
+          useValue: mockTokensService,
+        },
+        {
+          provide: CoinGeckoService,
+          useValue: mockCoinGeckoService,
         },
       ],
     }).compile();

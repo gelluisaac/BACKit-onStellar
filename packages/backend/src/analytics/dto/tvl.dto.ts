@@ -18,4 +18,16 @@ export class TotalValueLockedResponseDto {
     example: 8,
   })
   pendingStakesCount: number;
+
+  @ApiProperty({
+    description: 'Breakdown of active stakes',
+    example: [{ callId: '123', amount: 100, position: 'YES', tokenSymbol: 'USDC', potentialWin: 150 }]
+  })
+  breakdown: {
+    callId: string;
+    amount: number;
+    position: 'YES' | 'NO';
+    tokenSymbol: string;
+    potentialWin: number;
+  }[];
 }

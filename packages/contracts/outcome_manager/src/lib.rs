@@ -6,16 +6,19 @@ mod storage;
 mod test;
 mod verification;
 
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, IntoVal, Map, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, IntoVal, Map, Symbol, Vec};
 
 use auth::require_admin;
 use backit_shared::{is_valid_fee_bps, is_valid_outcome};
 use events::{
-    emit_batch_payout_started, emit_fee_collected, emit_outcome_disputed, emit_outcome_finalized,
-    emit_outcome_submitted, emit_payout_claimed,
+    emit_batch_payout_started, emit_contract_upgraded, emit_fee_collected, emit_outcome_disputed,
+    emit_outcome_finalized, emit_outcome_submitted, emit_payout_claimed,
+    emit_price_observation_submitted,
 };
-use storage::{set_dispute_window, InstanceKey, Outcome, SignedOutcome, TempKey};
+use storage::{set_dispute_window, InstanceKey, Outcome, PriceObservation, SignedOutcome, TempKey};
 use verification::{build_message, verify_signature};
+
+pub const CONTRACT_VERSION: u32 = 1;
 
 // ─── Cross-contract helpers ────────────────────────────────────────────────────
 
@@ -105,6 +108,7 @@ impl OutcomeManager {
             .set(&InstanceKey::FeeCollector, &fee_collector);
         env.storage().instance().set(&InstanceKey::FeeBps, &fee_bps);
         set_dispute_window(&env, dispute_window_secs);
+        env.storage().instance().set(&InstanceKey::Version, &CONTRACT_VERSION);
     }
 
     // ── Admin Controls ─────────────────────────────────────────────────────────
@@ -602,5 +606,146 @@ impl OutcomeManager {
             .get(&InstanceKey::Oracles)
             .expect("not initialized");
         oracles.contains_key(oracle)
+    }
+
+    /// Return the current contract version.
+    pub fn version(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&InstanceKey::Version)
+            .unwrap_or(CONTRACT_VERSION)
+    }
+
+    /// Upgrade the contract WASM to a new hash (admin only).
+    ///
+    /// Increments the stored version and emits `ContractUpgraded`.
+    ///
+    /// # Panics
+    /// - `not initialized` if the contract has not been initialized.
+    pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&InstanceKey::Admin)
+            .expect("not initialized");
+        admin.require_auth();
+
+        let old_version: u32 = env
+            .storage()
+            .instance()
+            .get(&InstanceKey::Version)
+            .unwrap_or(CONTRACT_VERSION);
+        let new_version = old_version + 1;
+
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+
+        env.storage()
+            .instance()
+            .set(&InstanceKey::Version, &new_version);
+        emit_contract_upgraded(&env, old_version, new_version, &admin);
+    }
+
+    /// Submit a signed price observation for TWAP calculation.
+    ///
+    /// Observations must be submitted in strictly increasing timestamp order.
+    /// A minimum of 3 observations is required before `compute_twap` can be called.
+    ///
+    /// # Panics
+    /// - `unauthorized oracle`              - pubkey not in the trusted set
+    /// - `observation timestamp must be strictly increasing` - out-of-order submission
+    pub fn submit_price_observation(
+        env: Env,
+        call_id: u64,
+        observation: PriceObservation,
+        oracle_pubkey: BytesN<32>,
+        signature: BytesN<64>,
+    ) {
+        // 1. Validate oracle
+        let oracles: Map<BytesN<32>, bool> = env
+            .storage()
+            .instance()
+            .get(&InstanceKey::Oracles)
+            .expect("not initialized");
+        if !oracles.contains_key(oracle_pubkey.clone()) {
+            panic!("unauthorized oracle");
+        }
+
+        // 2. Build canonical message and verify ed25519 signature
+        //    Format: b"twap_obs:" | call_id (8 BE) | price (16 BE) | timestamp (8 BE)
+        let mut raw = Bytes::from_slice(&env, b"twap_obs:");
+        raw.append(&Bytes::from_slice(&env, &call_id.to_be_bytes()));
+        raw.append(&Bytes::from_slice(&env, &observation.price.to_be_bytes()));
+        raw.append(&Bytes::from_slice(&env, &observation.timestamp.to_be_bytes()));
+        verify_signature(&env, &oracle_pubkey, &signature, &raw);
+
+        // 3. Load existing observations or start fresh
+        let key = TempKey::PriceObservations(call_id);
+        let mut observations: Vec<PriceObservation> = env
+            .storage()
+            .temporary()
+            .get(&key)
+            .unwrap_or_else(|| Vec::new(&env));
+
+        // 4. Enforce monotonically increasing timestamps
+        if let Some(last) = observations.last() {
+            if observation.timestamp <= last.timestamp {
+                panic!("observation timestamp must be strictly increasing");
+            }
+        }
+
+        let price = observation.price;
+        let timestamp = observation.timestamp;
+        observations.push_back(observation);
+        env.storage().temporary().set(&key, &observations);
+
+        emit_price_observation_submitted(&env, call_id, &oracle_pubkey, price, timestamp);
+    }
+
+    /// Compute the time-weighted average price (TWAP) from stored observations.
+    ///
+    /// Uses the formula: TWAP = sum(price[i] * dt[i]) / total_dt
+    /// where dt[i] = timestamp[i+1] - timestamp[i].
+    ///
+    /// # Panics
+    /// - `no price observations for call`        - none submitted yet
+    /// - `minimum 3 price observations required` - fewer than 3 stored
+    /// - `zero time window`                      - all timestamps identical
+    pub fn compute_twap(env: Env, call_id: u64) -> i128 {
+        let key = TempKey::PriceObservations(call_id);
+        let observations: Vec<PriceObservation> = env
+            .storage()
+            .temporary()
+            .get(&key)
+            .expect("no price observations for call");
+
+        let n = observations.len();
+        if n < 3 {
+            panic!("minimum 3 price observations required");
+        }
+
+        let mut weighted_sum: i128 = 0;
+        let mut total_time: i128 = 0;
+
+        for i in 0..(n - 1) {
+            let obs_i = observations.get(i).unwrap();
+            let obs_next = observations.get(i + 1).unwrap();
+            let dt = (obs_next.timestamp - obs_i.timestamp) as i128;
+            weighted_sum = obs_i.price
+                .checked_mul(dt)
+                .expect("overflow in TWAP weighted sum")
+                .checked_add(weighted_sum)
+                .expect("overflow accumulating weighted sum");
+            total_time = total_time
+                .checked_add(dt)
+                .expect("overflow in total time window");
+        }
+
+        if total_time == 0 {
+            panic!("zero time window");
+        }
+
+        weighted_sum
+            .checked_div(total_time)
+            .expect("division error in TWAP")
     }
 }

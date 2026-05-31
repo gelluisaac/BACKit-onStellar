@@ -46,6 +46,6 @@ import { OracleHealthController } from './oracle-health.controller';
       },
     },
   ],
-  exports: [OracleService, PriceDeviationService, OracleHealthService],
+  exports: [OracleService, PriceDeviationService, OracleHealthService, CoinGeckoService],
 })
 export class OracleModule {}

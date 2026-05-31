@@ -43,13 +43,23 @@ pub enum InstanceKey {
     DisputeWindow,
     PendingOutcome(u64),     // stores Outcome after quorum, before finalization
     DisputeWindowStart(u64), // ledger timestamp when quorum was reached
+    Version,
 }
 
+
+/// A single price data point submitted by an oracle for TWAP calculation
+#[contracttype]
+#[derive(Clone)]
+pub struct PriceObservation {
+    pub price: i128,
+    pub timestamp: u64,
+}
 #[contracttype]
 #[derive(Clone)]
 pub enum TempKey {
     Submission(BytesN<32>, u64),
     VoteCount(BytesN<32>, u64),
+    PriceObservations(u64),
 }
 
 /// Store the CallRegistry address in instance storage.

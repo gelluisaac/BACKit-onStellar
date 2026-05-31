@@ -56,3 +56,30 @@ pub fn emit_outcome_disputed(env: &Env, call_id: u64, new_outcome: u32, new_pric
         (call_id, new_outcome, new_price),
     );
 }
+
+/// Emitted when the contract WASM is upgraded
+pub fn emit_contract_upgraded(
+    env: &Env,
+    old_version: u32,
+    new_version: u32,
+    admin: &soroban_sdk::Address,
+) {
+    env.events().publish(
+        ("outcome_manager", "contract_upgraded"),
+        (old_version, new_version, admin.clone()),
+    );
+}
+
+/// Emitted when an oracle submits a price observation for TWAP
+pub fn emit_price_observation_submitted(
+    env: &Env,
+    call_id: u64,
+    oracle: &soroban_sdk::BytesN<32>,
+    price: i128,
+    timestamp: u64,
+) {
+    env.events().publish(
+        (symbol_short!("twap"), symbol_short!("obs_sub")),
+        (call_id, oracle.clone(), price, timestamp),
+    );
+}

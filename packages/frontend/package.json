@@ -21,6 +21,7 @@
     "@stellar/freighter-api": "^1.6.0",
     "@stellar/stellar-sdk": "^12.2.0",
     "clsx": "^2.0.0",
+    "framer-motion": "^12.40.0",
     "lightweight-charts": "^5.2.0",
     "lodash.debounce": "^4.0.8",
     "lucide-react": "^0.294.0",

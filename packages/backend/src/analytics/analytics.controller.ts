@@ -117,6 +117,8 @@ export class AnalyticsController {
    * for the given wallet address.
    */
   @Get(':userAddress/tvl')
+  @UseInterceptors(CacheInterceptor)
+  @CacheTTL(60000) // 1 minute
   @ApiOperation({
     summary: 'Get Total Value Locked',
     description:

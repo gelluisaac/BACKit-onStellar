@@ -50,6 +50,7 @@
     "class-validator": "^0.14.3",
     "cron": "^4.4.0",
     "dotenv": "^17.2.3",
+    "helmet": "^8.1.0",
     "pg": "^8.17.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
@@ -57,8 +58,7 @@
     "socket.io-client": "^4.8.3",
     "swagger-ui-express": "^5.0.1",
     "tweetnacl": "^1.0.3",
-    "typeorm": "^0.3.28"
-    ,
+    "typeorm": "^0.3.28",
     "bullmq": "^5.61.0",
     "ioredis": "^5.7.0"
   },
@@ -89,8 +89,7 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
-  }
-  ,
+  },
   "jest": {
     "moduleFileExtensions": [
       "js",

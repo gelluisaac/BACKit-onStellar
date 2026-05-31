@@ -172,3 +172,11 @@ pub fn emit_call_metadata_updated(
         ),
     );
 }
+
+/// Emitted when the contract WASM is upgraded
+pub fn emit_contract_upgraded(env: &Env, old_version: u32, new_version: u32, admin: &Address) {
+    env.events().publish(
+        ("call_registry", "contract_upgraded"),
+        (old_version, new_version, admin.clone()),
+    );
+}

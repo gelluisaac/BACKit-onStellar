@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
+import { motion } from "framer-motion";
 import {
   TrendingUp,
   Zap,
@@ -14,735 +15,395 @@ import {
   Target,
 } from "lucide-react";
 
-// Simple fade-in hook
-function useFadeIn(threshold = 0.15) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) setVisible(true);
-      },
-      { threshold },
-    );
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, [threshold]);
-
-  return { ref, visible };
-}
-
-function FadeIn({
-  children,
-  delay = 0,
-  className = "",
-}: {
-  children: React.ReactNode;
-  delay?: number;
-  className?: string;
-}) {
-  const { ref, visible } = useFadeIn();
-  return (
-    <div
-      ref={ref}
-      className={className}
-      style={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? "translateY(0)" : "translateY(28px)",
-        transition: `opacity 0.7s ease ${delay}ms, transform 0.7s ease ${delay}ms`,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
+const fadeUp = {
+  hidden: { opacity: 0, y: 32 },
+  show: { opacity: 1, y: 0 },
+};
 
 export default function HomePage() {
   const [walletConnected, setWalletConnected] = useState(false);
 
+  const howItWorks = [
+    {
+      icon: <Target className="h-6 w-6" />,
+      step: "01",
+      title: "Create a Call",
+      desc: "Create a prediction market for any outcome and invite others to back your call.",
+      color: "#22c55e",
+    },
+    {
+      icon: <Zap className="h-6 w-6" />,
+      step: "02",
+      title: "Stake on Outcome",
+      desc: "Stake your conviction on the outcome and compete with other predictors.",
+      color: "#3b82f6",
+    },
+    {
+      icon: <Award className="h-6 w-6" />,
+      step: "03",
+      title: "Earn Rewards",
+      desc: "Win rewards when your prediction is correct and build your reputation.",
+      color: "#a855f7",
+    },
+  ];
+
+  const stats = [
+    { label: "Total Volume", value: "$4.2M" },
+    { label: "Active Markets", value: "1,240" },
+    { label: "Users", value: "18.4K" },
+  ];
+
+  const features = [
+    {
+      icon: <Globe className="h-5 w-5" />,
+      title: "Stellar Powered",
+      desc: "Fast, low-cost settlement using Stellar and Soroban smart contracts.",
+      badge: "Stellar",
+      color: "#3b82f6",
+    },
+    {
+      icon: <Users className="h-5 w-5" />,
+      title: "Social Markets",
+      desc: "Create calls, follow predictors, and compete with your community.",
+      badge: "Social",
+      color: "#22c55e",
+    },
+    {
+      icon: <Zap className="h-5 w-5" />,
+      title: "Fast Settlement",
+      desc: "Prediction outcomes can settle quickly with a smooth user experience.",
+      badge: "Fast",
+      color: "#a855f7",
+    },
+    {
+      icon: <Star className="h-5 w-5" />,
+      title: "Reputation",
+      desc: "Build credibility through your prediction history and win rate.",
+      badge: "On-chain",
+      color: "#f59e0b",
+    },
+    {
+      icon: <TrendingUp className="h-5 w-5" />,
+      title: "Market Metrics",
+      desc: "Track platform activity, volume, users, and live prediction markets.",
+      badge: "Live",
+      color: "#22c55e",
+    },
+    {
+      icon: <Target className="h-5 w-5" />,
+      title: "Open Calls",
+      desc: "Anyone can participate in prediction markets and back outcomes.",
+      badge: "Open",
+      color: "#3b82f6",
+    },
+  ];
+
   return (
-    <div
-      style={{ fontFamily: "'DM Mono', 'Fira Code', 'Courier New', monospace" }}
-      className="min-h-screen bg-[#080b14] text-white overflow-x-hidden"
-    >
-      {/* Google Font */}
+    <main className="min-h-screen overflow-x-hidden bg-[#080b14] text-white">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&display=swap');
-        
-        .heading { font-family: 'Bricolage Grotesque', sans-serif; }
-        
-        @keyframes pulse-glow {
-          0%, 100% { box-shadow: 0 0 20px rgba(34,197,94,0.3), 0 0 60px rgba(34,197,94,0.1); }
-          50% { box-shadow: 0 0 40px rgba(34,197,94,0.5), 0 0 100px rgba(34,197,94,0.2); }
-        }
         @keyframes float {
           0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-12px); }
+          50% { transform: translateY(-16px); }
         }
+
         @keyframes shimmer {
           0% { background-position: -200% center; }
           100% { background-position: 200% center; }
         }
-        @keyframes ticker {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
+
+        @keyframes pulseGlow {
+          0%, 100% { box-shadow: 0 0 24px rgba(34,197,94,0.25); }
+          50% { box-shadow: 0 0 48px rgba(34,197,94,0.45); }
         }
-        .glow-green { animation: pulse-glow 3s ease-in-out infinite; }
-        .float { animation: float 6s ease-in-out infinite; }
+
+        .float {
+          animation: float 6s ease-in-out infinite;
+        }
+
         .shimmer-text {
-          background: linear-gradient(90deg, #22c55e, #3b82f6, #22c55e, #3b82f6);
+          background: linear-gradient(90deg, #22c55e, #3b82f6, #22c55e);
           background-size: 200% auto;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           animation: shimmer 4s linear infinite;
         }
-        .ticker-wrap { overflow: hidden; }
-        .ticker { display: flex; animation: ticker 20s linear infinite; }
+
         .grid-bg {
-          background-image: 
-            linear-gradient(rgba(59,130,246,0.05) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(59,130,246,0.05) 1px, transparent 1px);
-          background-size: 60px 60px;
+          background-image:
+            linear-gradient(rgba(59,130,246,0.06) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(59,130,246,0.06) 1px, transparent 1px);
+          background-size: 56px 56px;
         }
-        .card-hover {
-          transition: transform 0.3s ease, box-shadow 0.3s ease;
+
+        .glow-button {
+          animation: pulseGlow 3s ease-in-out infinite;
         }
-        .card-hover:hover {
-          transform: translateY(-6px);
-          box-shadow: 0 20px 60px rgba(34,197,94,0.15);
-        }
-        .btn-primary-glow:hover {
-          box-shadow: 0 0 30px rgba(34,197,94,0.5);
-          transform: translateY(-2px);
-        }
-        .btn-primary-glow { transition: all 0.3s ease; }
       `}</style>
 
-      {/* Nav */}
-      <nav
-        className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-4"
-        style={{
-          background: "rgba(8,11,20,0.85)",
-          backdropFilter: "blur(20px)",
-          borderBottom: "1px solid rgba(59,130,246,0.1)",
-        }}
-      >
-        <div className="flex items-center gap-2">
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{ background: "linear-gradient(135deg, #22c55e, #3b82f6)" }}
-          >
-            <TrendingUp className="w-4 h-4 text-white" />
-          </div>
-          <span className="heading font-bold text-lg tracking-tight">
-            BACK<span className="text-[#22c55e]">IT</span>
-          </span>
-        </div>
-        <div className="hidden md:flex items-center gap-8 text-sm text-gray-400">
-          <a href="#how" className="hover:text-white transition-colors">
-            How it Works
-          </a>
-          <a href="#features" className="hover:text-white transition-colors">
-            Features
-          </a>
-          <a href="#leaderboard" className="hover:text-white transition-colors">
-            Leaderboard
-          </a>
-        </div>
-        <button
-          onClick={() => setWalletConnected(!walletConnected)}
-          className="btn-primary-glow px-5 py-2.5 rounded-lg text-sm font-medium"
-          style={{
-            background: walletConnected
-              ? "rgba(34,197,94,0.15)"
-              : "linear-gradient(135deg, #22c55e, #16a34a)",
-            color: walletConnected ? "#22c55e" : "white",
-            border: walletConnected ? "1px solid rgba(34,197,94,0.4)" : "none",
-          }}
-        >
-          {walletConnected ? "● Connected" : "Connect Wallet"}
-        </button>
-      </nav>
-
-      {/* Live ticker */}
-      <div
-        className="fixed top-[65px] left-0 right-0 z-40 py-1.5 ticker-wrap"
-        style={{
-          background: "rgba(34,197,94,0.08)",
-          borderBottom: "1px solid rgba(34,197,94,0.15)",
-        }}
-      >
-        <div className="ticker text-xs text-[#22c55e] opacity-70 gap-8">
-          {[...Array(2)].map((_, i) => (
-            <div key={i} className="flex gap-10 pr-10">
-              <span>
-                BTC/USD ↑ 67,420 <span className="text-green-400">+2.3%</span>
-              </span>
-              <span>
-                ETH/USD ↑ 3,840 <span className="text-green-400">+1.8%</span>
-              </span>
-              <span>
-                SOL/USD ↓ 182 <span className="text-red-400">-0.5%</span>
-              </span>
-              <span>
-                XLM/USD ↑ 0.42 <span className="text-green-400">+5.1%</span>
-              </span>
-              <span>
-                AVAX/USD ↑ 41.2 <span className="text-green-400">+3.2%</span>
-              </span>
-              <span>CALLS TODAY: 2,847 🔥</span>
-              <span>PRIZE POOL: $148,000 💰</span>
+      <nav className="fixed left-0 right-0 top-0 z-50 border-b border-white/10 bg-[#080b14]/85 px-6 py-4 backdrop-blur-xl md:px-12">
+        <div className="mx-auto flex max-w-6xl items-center justify-between">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-blue-500">
+              <TrendingUp className="h-5 w-5 text-white" />
             </div>
-          ))}
-        </div>
-      </div>
+            <span className="text-lg font-bold tracking-tight">
+              BACK<span className="text-green-400">IT</span>
+            </span>
+          </Link>
 
-      {/* Hero */}
-      <section className="relative min-h-screen flex flex-col items-center justify-center pt-28 pb-16 px-6 grid-bg">
-        {/* Radial glow */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(ellipse 80% 50% at 50% 40%, rgba(34,197,94,0.08) 0%, rgba(59,130,246,0.05) 50%, transparent 100%)",
-          }}
-        />
-
-        {/* Floating orbs */}
-        <div
-          className="float absolute top-1/4 left-1/4 w-64 h-64 rounded-full pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(circle, rgba(34,197,94,0.06) 0%, transparent 70%)",
-            animationDelay: "0s",
-          }}
-        />
-        <div
-          className="float absolute bottom-1/3 right-1/4 w-96 h-96 rounded-full pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(circle, rgba(59,130,246,0.06) 0%, transparent 70%)",
-            animationDelay: "2s",
-          }}
-        />
-
-        <div className="relative max-w-5xl mx-auto text-center">
-          <div
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs mb-8"
-            style={{
-              background: "rgba(34,197,94,0.1)",
-              border: "1px solid rgba(34,197,94,0.25)",
-              color: "#22c55e",
-            }}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-pulse" />
-            LIVE — Prediction Markets on Stellar
-          </div>
-
-          <h1 className="heading font-extrabold text-5xl md:text-7xl lg:text-8xl leading-[1.0] mb-6 tracking-tight">
-            Predict With
-            <br />
-            <span className="shimmer-text">Your Friends.</span>
-            <br />
-            <span className="text-white">Win Together.</span>
-          </h1>
-
-          <p
-            className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed"
-            style={{ fontFamily: "inherit" }}
-          >
-            Social prediction markets where your calls earn real yield. Stake
-            your conviction, compete on the leaderboard, and settle instantly
-            on-chain.
-          </p>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-            <button
-              onClick={() => setWalletConnected(true)}
-              className="btn-primary-glow glow-green px-8 py-4 rounded-xl font-semibold text-base flex items-center gap-2"
-              style={{
-                background: "linear-gradient(135deg, #22c55e, #16a34a)",
-                fontFamily: "Bricolage Grotesque, sans-serif",
-              }}
-            >
-              Launch App <ArrowRight className="w-4 h-4" />
-            </button>
-            <a
-              href="#how"
-              className="px-8 py-4 rounded-xl text-sm font-medium text-gray-300 flex items-center gap-2 hover:text-white transition-colors"
-              style={{
-                border: "1px solid rgba(255,255,255,0.1)",
-                fontFamily: "Bricolage Grotesque, sans-serif",
-              }}
-            >
-              How it Works <ChevronDown className="w-4 h-4" />
+          <div className="hidden items-center gap-8 text-sm text-gray-400 md:flex">
+            <a href="#how" className="transition hover:text-white">
+              How It Works
+            </a>
+            <a href="#features" className="transition hover:text-white">
+              Features
+            </a>
+            <a href="#stats" className="transition hover:text-white">
+              Stats
             </a>
           </div>
 
-          {/* Stats bar */}
-          <div className="flex flex-wrap justify-center gap-8 md:gap-16">
-            {[
-              { label: "Total Volume", value: "$4.2M" },
-              { label: "Active Predictors", value: "18,400" },
-              { label: "Avg Win Rate", value: "61%" },
-              { label: "Chains Supported", value: "4" },
-            ].map((stat) => (
-              <div key={stat.label} className="text-center">
-                <div className="heading font-bold text-2xl md:text-3xl text-white">
-                  {stat.value}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">{stat.label}</div>
+          <button
+            onClick={() => setWalletConnected(!walletConnected)}
+            className="rounded-xl bg-green-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-green-400"
+          >
+            {walletConnected ? "Connected" : "Connect Wallet"}
+          </button>
+        </div>
+      </nav>
+
+      <section className="grid-bg relative flex min-h-screen items-center justify-center px-6 pb-20 pt-32">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,197,94,0.12),transparent_45%)]" />
+
+        <div className="float pointer-events-none absolute left-10 top-40 h-56 w-56 rounded-full bg-green-500/10 blur-3xl" />
+        <div className="float pointer-events-none absolute bottom-24 right-10 h-72 w-72 rounded-full bg-blue-500/10 blur-3xl" />
+
+        <motion.div
+          variants={fadeUp}
+          initial="hidden"
+          animate="show"
+          transition={{ duration: 0.7 }}
+          className="relative mx-auto max-w-5xl text-center"
+        >
+          <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-green-400/30 bg-green-400/10 px-4 py-2 text-xs font-medium text-green-400">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
+            Prediction Markets on Stellar
+          </div>
+
+          <h1 className="mb-6 text-5xl font-extrabold leading-tight tracking-tight md:text-7xl lg:text-8xl">
+            <span className="shimmer-text">Predict.</span>{" "}
+            <span>Stake.</span>{" "}
+            <span className="text-green-400">Win.</span>
+          </h1>
+
+          <p className="mx-auto mb-10 max-w-2xl text-lg leading-relaxed text-gray-400 md:text-xl">
+            BACKit is a social prediction platform where users create calls,
+            stake on outcomes, and earn rewards through fast Stellar-powered
+            settlement.
+          </p>
+
+          <div className="mb-16 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <Link
+              href="/calls"
+              className="glow-button inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 px-8 py-4 font-semibold text-white transition hover:-translate-y-1"
+            >
+              Launch App <ArrowRight className="h-5 w-5" />
+            </Link>
+
+            <a
+              href="#how"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-8 py-4 font-medium text-gray-300 transition hover:border-white/20 hover:text-white"
+            >
+              How It Works <ChevronDown className="h-5 w-5" />
+            </a>
+          </div>
+
+          <motion.div
+            id="stats"
+            variants={fadeUp}
+            initial="hidden"
+            animate="show"
+            transition={{ duration: 0.7, delay: 0.2 }}
+            className="mx-auto grid max-w-3xl grid-cols-1 gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur sm:grid-cols-3"
+          >
+            {stats.map((stat) => (
+              <div key={stat.label} className="rounded-2xl bg-black/20 p-6">
+                <div className="text-3xl font-bold">{stat.value}</div>
+                <div className="mt-1 text-sm text-gray-500">{stat.label}</div>
               </div>
             ))}
-          </div>
-        </div>
-
-        {/* Mock UI card floating */}
-        <div
-          className="relative mt-16 max-w-lg mx-auto w-full float"
-          style={{ animationDelay: "1s" }}
-        >
-          <div
-            className="rounded-2xl p-1"
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(34,197,94,0.3), rgba(59,130,246,0.3))",
-              boxShadow: "0 40px 80px rgba(0,0,0,0.5)",
-            }}
-          >
-            <div
-              className="rounded-2xl p-5"
-              style={{
-                background: "#0d1117",
-                border: "1px solid rgba(255,255,255,0.05)",
-              }}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-xs text-gray-500">TRENDING CALL</span>
-                <span
-                  className="text-xs px-2 py-0.5 rounded-full"
-                  style={{
-                    background: "rgba(34,197,94,0.1)",
-                    color: "#22c55e",
-                  }}
-                >
-                  +2.3x odds
-                </span>
-              </div>
-              <div className="flex items-center gap-3 mb-4">
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-lg"
-                  style={{ background: "rgba(59,130,246,0.2)" }}
-                >
-                  🚀
-                </div>
-                <div>
-                  <div className="heading font-semibold text-sm">
-                    BTC hits $75k before April
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    by @crypto_sage · 847 backers
-                  </div>
-                </div>
-              </div>
-              <div
-                className="h-1.5 rounded-full mb-3"
-                style={{ background: "rgba(255,255,255,0.1)" }}
-              >
-                <div
-                  className="h-full rounded-full w-2/3"
-                  style={{
-                    background: "linear-gradient(90deg, #22c55e, #3b82f6)",
-                  }}
-                />
-              </div>
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>Pool: $24,800</span>
-                <span>Closes: 12d 4h</span>
-              </div>
-            </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       </section>
 
-      {/* How it Works */}
-      <section
-        id="how"
-        className="py-24 px-6"
-        style={{ background: "rgba(255,255,255,0.01)" }}
-      >
-        <div className="max-w-5xl mx-auto">
-          <FadeIn>
-            <div className="text-center mb-16">
-              <div className="text-xs text-[#22c55e] mb-3 tracking-widest">
-                THE PROCESS
-              </div>
-              <h2 className="heading font-bold text-4xl md:text-5xl">
-                Three steps to the moon.
-              </h2>
-            </div>
-          </FadeIn>
+      <section id="how" className="px-6 py-24">
+        <div className="mx-auto max-w-6xl">
+          <motion.div
+            variants={fadeUp}
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="mb-16 text-center"
+          >
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-green-400">
+              How It Works
+            </p>
+            <h2 className="text-4xl font-bold md:text-5xl">
+              Create a Call → Stake on Outcome → Earn Rewards
+            </h2>
+          </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-6 relative">
-            {/* Connecting line */}
-            <div
-              className="hidden md:block absolute top-14 left-1/3 right-1/3 h-px"
-              style={{ background: "linear-gradient(90deg, #22c55e, #3b82f6)" }}
-            />
-
-            {[
-              {
-                icon: <Target className="w-6 h-6" />,
-                step: "01",
-                title: "Make Your Call",
-                desc: "Browse live markets or create your own prediction. Any token, any outcome. Put your conviction on the line.",
-                color: "#22c55e",
-                delay: 0,
-              },
-              {
-                icon: <Zap className="w-6 h-6" />,
-                step: "02",
-                title: "Stake & Compete",
-                desc: "Back your call with XLM or any supported token. Friends can back you or bet against you — social markets at its finest.",
-                color: "#3b82f6",
-                delay: 150,
-              },
-              {
-                icon: <Award className="w-6 h-6" />,
-                step: "03",
-                title: "Win & Earn",
-                desc: "Markets settle instantly on-chain. Winners claim rewards automatically. Your rep grows with every correct call.",
-                color: "#a855f7",
-                delay: 300,
-              },
-            ].map((item) => (
-              <FadeIn key={item.step} delay={item.delay}>
-                <div
-                  className="card-hover relative rounded-2xl p-6 h-full"
-                  style={{
-                    background: "#0d1117",
-                    border: "1px solid rgba(255,255,255,0.07)",
-                  }}
-                >
+          <div className="grid gap-6 md:grid-cols-3">
+            {howItWorks.map((item, index) => (
+              <motion.div
+                key={item.step}
+                variants={fadeUp}
+                initial="hidden"
+                whileInView="show"
+                viewport={{ once: true }}
+                transition={{ duration: 0.6, delay: index * 0.12 }}
+                className="rounded-3xl border border-white/10 bg-[#0d1117] p-7 transition hover:-translate-y-2 hover:border-green-400/30"
+              >
+                <div className="mb-6 flex items-center justify-between">
                   <div
-                    className="absolute -top-3 -right-3 text-xs font-bold px-2 py-1 rounded-md"
+                    className="flex h-14 w-14 items-center justify-center rounded-2xl"
                     style={{
-                      background: item.color,
-                      color: "white",
-                      fontFamily: "Bricolage Grotesque, sans-serif",
+                      backgroundColor: `${item.color}20`,
+                      color: item.color,
                     }}
-                  >
-                    {item.step}
-                  </div>
-                  <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
-                    style={{ background: `${item.color}18`, color: item.color }}
                   >
                     {item.icon}
                   </div>
-                  <h3 className="heading font-bold text-lg mb-3">
-                    {item.title}
-                  </h3>
-                  <p className="text-sm text-gray-400 leading-relaxed">
-                    {item.desc}
-                  </p>
+                  <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-gray-400">
+                    {item.step}
+                  </span>
                 </div>
-              </FadeIn>
+                <h3 className="mb-3 text-xl font-bold">{item.title}</h3>
+                <p className="text-sm leading-relaxed text-gray-400">
+                  {item.desc}
+                </p>
+              </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section id="features" className="py-24 px-6">
-        <div className="max-w-5xl mx-auto">
-          <FadeIn>
-            <div className="text-center mb-16">
-              <div className="text-xs text-[#3b82f6] mb-3 tracking-widest">
-                BUILT DIFFERENT
-              </div>
-              <h2 className="heading font-bold text-4xl md:text-5xl">
-                Everything you need to win.
-              </h2>
-            </div>
-          </FadeIn>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[
-              {
-                icon: <Globe className="w-5 h-5" />,
-                title: "Multi-Chain",
-                desc: "Trade across Stellar, Ethereum, Solana, and Avalanche from a single unified interface.",
-                badge: "4 Chains",
-                color: "#3b82f6",
-              },
-              {
-                icon: <Users className="w-5 h-5" />,
-                title: "Social Feed",
-                desc: "Follow top predictors, copy calls, and build your reputation on the leaderboard.",
-                badge: "Live",
-                color: "#22c55e",
-              },
-              {
-                icon: <Zap className="w-5 h-5" />,
-                title: "Instant Settlement",
-                desc: "Soroban smart contracts settle markets in seconds. No waiting, no disputes.",
-                badge: "<2s",
-                color: "#a855f7",
-              },
-              {
-                icon: <Star className="w-5 h-5" />,
-                title: "Reputation Score",
-                desc: "Your track record is on-chain. Build credibility, unlock higher stake limits.",
-                badge: "On-chain",
-                color: "#f59e0b",
-              },
-              {
-                icon: <TrendingUp className="w-5 h-5" />,
-                title: "Real Yield",
-                desc: "Winning predictors earn from the losing side. No house cut — pure peer-to-peer.",
-                badge: "0% Fee*",
-                color: "#22c55e",
-              },
-              {
-                icon: <Target className="w-5 h-5" />,
-                title: "Create Markets",
-                desc: "Anyone can launch a prediction market on any outcome. Permissionless and unstoppable.",
-                badge: "Open",
-                color: "#3b82f6",
-              },
-            ].map((feature, i) => (
-              <FadeIn key={feature.title} delay={i * 80}>
-                <div
-                  className="card-hover rounded-2xl p-5 h-full"
-                  style={{
-                    background: "#0d1117",
-                    border: "1px solid rgba(255,255,255,0.07)",
-                  }}
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center"
-                      style={{
-                        background: `${feature.color}18`,
-                        color: feature.color,
-                      }}
-                    >
-                      {feature.icon}
-                    </div>
-                    <span
-                      className="text-xs px-2 py-0.5 rounded-full font-medium"
-                      style={{
-                        background: `${feature.color}18`,
-                        color: feature.color,
-                      }}
-                    >
-                      {feature.badge}
-                    </span>
-                  </div>
-                  <h3 className="heading font-semibold text-base mb-2">
-                    {feature.title}
-                  </h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">
-                    {feature.desc}
-                  </p>
-                </div>
-              </FadeIn>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Leaderboard preview */}
-      <section
-        id="leaderboard"
-        className="py-24 px-6"
-        style={{ background: "rgba(255,255,255,0.01)" }}
-      >
-        <div className="max-w-3xl mx-auto">
-          <FadeIn>
-            <div className="text-center mb-12">
-              <div className="text-xs text-[#f59e0b] mb-3 tracking-widest">
-                SOCIAL RANKINGS
-              </div>
-              <h2 className="heading font-bold text-4xl md:text-5xl">
-                Top Predictors This Week
-              </h2>
-            </div>
-          </FadeIn>
-
-          <FadeIn delay={100}>
-            <div
-              className="rounded-2xl overflow-hidden"
-              style={{
-                border: "1px solid rgba(255,255,255,0.07)",
-                background: "#0d1117",
-              }}
-            >
-              {[
-                {
-                  rank: 1,
-                  name: "crypto_sage",
-                  calls: 142,
-                  winRate: 73,
-                  pnl: "+$12,400",
-                  medal: "🥇",
-                },
-                {
-                  rank: 2,
-                  name: "moon_caller",
-                  calls: 98,
-                  winRate: 69,
-                  pnl: "+$8,200",
-                  medal: "🥈",
-                },
-                {
-                  rank: 3,
-                  name: "stellar_pro",
-                  calls: 201,
-                  winRate: 66,
-                  pnl: "+$6,100",
-                  medal: "🥉",
-                },
-                {
-                  rank: 4,
-                  name: "defi_degen",
-                  calls: 87,
-                  winRate: 64,
-                  pnl: "+$4,800",
-                  medal: "4",
-                },
-                {
-                  rank: 5,
-                  name: "you?",
-                  calls: 0,
-                  winRate: 0,
-                  pnl: "—",
-                  medal: "5",
-                  ghost: true,
-                },
-              ].map((p, i) => (
-                <div
-                  key={p.rank}
-                  className="flex items-center justify-between px-6 py-4 transition-colors hover:bg-white/[0.02]"
-                  style={{
-                    borderTop:
-                      i > 0 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                    opacity: (p as any).ghost ? 0.35 : 1,
-                  }}
-                >
-                  <div className="flex items-center gap-4">
-                    <span className="text-lg w-6 text-center">{p.medal}</span>
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                      style={{
-                        background: (p as any).ghost
-                          ? "rgba(255,255,255,0.05)"
-                          : "linear-gradient(135deg, #22c55e33, #3b82f633)",
-                        border: "1px solid rgba(34,197,94,0.2)",
-                        color: (p as any).ghost ? "#666" : "#22c55e",
-                      }}
-                    >
-                      {p.name.slice(0, 1).toUpperCase()}
-                    </div>
-                    <span className="font-medium text-sm">@{p.name}</span>
-                  </div>
-                  <div className="hidden sm:flex items-center gap-8 text-sm text-gray-500">
-                    <span>{p.calls > 0 ? `${p.calls} calls` : "—"}</span>
-                    <span className="text-[#22c55e]">
-                      {p.winRate > 0 ? `${p.winRate}% WR` : "—"}
-                    </span>
-                    <span
-                      className="font-medium"
-                      style={{
-                        color: p.pnl.startsWith("+") ? "#22c55e" : "#666",
-                      }}
-                    >
-                      {p.pnl}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </FadeIn>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="py-32 px-6 relative overflow-hidden">
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(ellipse 70% 60% at 50% 50%, rgba(34,197,94,0.07) 0%, transparent 100%)",
-          }}
-        />
-        <FadeIn>
-          <div className="max-w-2xl mx-auto text-center relative">
-            <div className="text-6xl mb-6">🔮</div>
-            <h2 className="heading font-extrabold text-4xl md:text-6xl mb-6">
-              Your next call
-              <br />
-              could change everything.
+      <section id="features" className="bg-white/[0.02] px-6 py-24">
+        <div className="mx-auto max-w-6xl">
+          <motion.div
+            variants={fadeUp}
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="mb-16 text-center"
+          >
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-blue-400">
+              Feature Showcase
+            </p>
+            <h2 className="text-4xl font-bold md:text-5xl">
+              Built for modern prediction markets
             </h2>
-            <p className="text-gray-400 mb-10 text-lg">
-              Join thousands of predictors already earning on BACKit. Connect
-              your wallet and make your first call in under 60 seconds.
-            </p>
-            <button
-              onClick={() => setWalletConnected(true)}
-              className="btn-primary-glow glow-green px-10 py-4 rounded-xl font-semibold text-base inline-flex items-center gap-2"
-              style={{
-                background: "linear-gradient(135deg, #22c55e, #16a34a)",
-                fontFamily: "Bricolage Grotesque, sans-serif",
-              }}
-            >
-              Connect Wallet & Start <ArrowRight className="w-5 h-5" />
-            </button>
-            <p className="text-xs text-gray-600 mt-4">
-              No account needed. Non-custodial. Your keys, your calls.
-            </p>
+          </motion.div>
+
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {features.map((feature, index) => (
+              <motion.div
+                key={feature.title}
+                variants={fadeUp}
+                initial="hidden"
+                whileInView="show"
+                viewport={{ once: true }}
+                transition={{ duration: 0.6, delay: index * 0.08 }}
+                className="rounded-3xl border border-white/10 bg-[#0d1117] p-6 transition hover:-translate-y-2 hover:border-blue-400/30"
+              >
+                <div className="mb-5 flex items-start justify-between">
+                  <div
+                    className="flex h-12 w-12 items-center justify-center rounded-2xl"
+                    style={{
+                      backgroundColor: `${feature.color}20`,
+                      color: feature.color,
+                    }}
+                  >
+                    {feature.icon}
+                  </div>
+                  <span
+                    className="rounded-full px-3 py-1 text-xs font-medium"
+                    style={{
+                      backgroundColor: `${feature.color}20`,
+                      color: feature.color,
+                    }}
+                  >
+                    {feature.badge}
+                  </span>
+                </div>
+                <h3 className="mb-2 text-lg font-bold">{feature.title}</h3>
+                <p className="text-sm leading-relaxed text-gray-400">
+                  {feature.desc}
+                </p>
+              </motion.div>
+            ))}
           </div>
-        </FadeIn>
+        </div>
       </section>
 
-      {/* Footer */}
-      <footer
-        className="py-8 px-6"
-        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
-      >
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-gray-600">
+      <section className="relative overflow-hidden px-6 py-28">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,197,94,0.10),transparent_45%)]" />
+
+        <motion.div
+          variants={fadeUp}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="relative mx-auto max-w-3xl rounded-3xl border border-white/10 bg-[#0d1117] p-8 text-center md:p-12"
+        >
+          <div className="mb-5 text-5xl">🚀</div>
+          <h2 className="mb-4 text-4xl font-extrabold md:text-5xl">
+            Ready to make your first call?
+          </h2>
+          <p className="mx-auto mb-8 max-w-xl text-gray-400">
+            Launch the app, explore active markets, and start backing your
+            predictions on Stellar.
+          </p>
+          <Link
+            href="/calls"
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 px-8 py-4 font-semibold text-white transition hover:-translate-y-1"
+          >
+            Launch App <ArrowRight className="h-5 w-5" />
+          </Link>
+        </motion.div>
+      </section>
+
+      <footer className="border-t border-white/10 px-6 py-8">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-5 text-sm text-gray-500 md:flex-row">
           <div className="flex items-center gap-2">
-            <div
-              className="w-5 h-5 rounded flex items-center justify-center"
-              style={{
-                background: "linear-gradient(135deg, #22c55e, #3b82f6)",
-              }}
-            >
-              <TrendingUp className="w-3 h-3 text-white" />
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-green-500 to-blue-500">
+              <TrendingUp className="h-4 w-4 text-white" />
             </div>
-            <span className="heading font-bold text-sm text-gray-400">
-              BACK<span className="text-[#22c55e]">IT</span>
+            <span className="font-bold text-gray-300">
+              BACK<span className="text-green-400">IT</span>
             </span>
           </div>
-          <span>© 2025 BACKit. Powered by Stellar Soroban.</span>
-          <div className="flex gap-6">
-            <Link href="/profile/sample" className="hover:text-gray-400 transition-colors">
-              View Sample Profile
+
+          <div className="rounded-full border border-green-400/30 bg-green-400/10 px-4 py-2 text-xs font-semibold text-green-400">
+            Powered by Stellar
+          </div>
+
+          <div className="flex gap-5">
+            <Link href="/profile/sample" className="transition hover:text-white">
+              Sample Profile
             </Link>
-            <a href="#" className="hover:text-gray-400 transition-colors">
-              Docs
+            <a href="#features" className="transition hover:text-white">
+              Features
             </a>
-            <a href="#" className="hover:text-gray-400 transition-colors">
-              Discord
-            </a>
-            <a href="#" className="hover:text-gray-400 transition-colors">
-              Twitter
+            <a href="#how" className="transition hover:text-white">
+              How It Works
             </a>
           </div>
         </div>
       </footer>
-    </div>
+    </main>
   );
 }
